@@ -912,8 +912,24 @@ function getBootData(token) {
  * "this email isn't on file yet" for the TOIC office account.
  */
 function grantToicOfficeAdmin() {
-  const email = 'toic.office@dlsl.edu.ph';
   const sheet = getSheet(SH.USERS);
+
+  // Self-heal: if the sheet is empty or its first row isn't the expected
+  // header (e.g. because a row was appended before setup() ever ran),
+  // insert a proper header row so every lookup by column name works.
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(USER_HEADERS);
+  } else {
+    const firstRow = sheet.getRange(1, 1, 1, USER_HEADERS.length).getValues()[0];
+    const looksLikeHeader = firstRow[0] === 'UserID' && firstRow[1] === 'Email';
+    if (!looksLikeHeader) {
+      sheet.insertRowBefore(1);
+      sheet.getRange(1, 1, 1, USER_HEADERS.length).setValues([USER_HEADERS]);
+      console.log('⚠️ Users sheet had no header row — inserted one. Check row 2 onward for any data that needs realigning.');
+    }
+  }
+
+  const email = 'toic.office@dlsl.edu.ph';
   const rowIndex = _findRowIndex(sheet, 'Email', email);
   const now = new Date().toISOString();
   if (rowIndex === -1) {
@@ -929,6 +945,7 @@ function grantToicOfficeAdmin() {
     _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
     console.log('✅ Updated ' + email + ' to CPD Administrator / Active.');
   }
+  _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────
