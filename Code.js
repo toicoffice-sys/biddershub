@@ -457,15 +457,25 @@ function _resolveAppToken(appToken) {
 const ALLOWED_UPLOAD_MIME = ['application/pdf'];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 
-// All vendor accreditation and bid documents are stored in this pre-existing Drive folder.
-const UPLOAD_FOLDER_ID = '141F4vIiU8wOBjn4d1LdoHbtMH5pWDBHD';
+// Vendor accreditation and bid documents are stored in a folder the script creates
+// itself. Using drive.file scope (not full drive) deliberately — it needs no Google
+// Workspace admin approval, unlike full Drive access which DLSL's domain was blocking
+// for this unverified internal script. The folder can be freely renamed/moved/shared
+// afterward in Drive; that doesn't require any re-authorization.
+const UPLOAD_FOLDER_NAME = 'BiddersHub Documents';
+
+function _getOrCreateUploadFolder() {
+  const it = DriveApp.getFoldersByName(UPLOAD_FOLDER_NAME);
+  if (it.hasNext()) return it.next();
+  return DriveApp.createFolder(UPLOAD_FOLDER_NAME);
+}
 
 function _uploadFile(base64Data, filename, mimeType) {
   if (ALLOWED_UPLOAD_MIME.indexOf(mimeType) === -1) throw new Error('Unsupported file type: ' + mimeType);
   const bytes = Utilities.base64Decode(base64Data);
   if (bytes.length > MAX_UPLOAD_BYTES) throw new Error('File exceeds the 10MB limit.');
   const blob = Utilities.newBlob(bytes, mimeType, filename);
-  const folder = DriveApp.getFolderById(UPLOAD_FOLDER_ID);
+  const folder = _getOrCreateUploadFolder();
   const file = folder.createFile(blob);
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   return { name: filename, url: file.getUrl(), fileId: file.getId() };
@@ -1068,14 +1078,13 @@ function getBootData(token) {
 
 /**
  * One-time helper: run this from the Apps Script editor (Run menu — NOT
- * reachable from the web app) to force the Drive authorization prompt.
- * setup() and grantToicOfficeAdmin() never call DriveApp, so running them
- * does not grant Drive access even after "Allow" — this function's only
- * job is to touch DriveApp so the consent screen has to ask for it.
+ * reachable from the web app) to force the Drive authorization prompt and
+ * create the upload folder ahead of time. setup() and grantToicOfficeAdmin()
+ * never call DriveApp, so running them alone never triggers this consent.
  */
 function authorizeDriveAccess() {
-  const folder = DriveApp.getFolderById(UPLOAD_FOLDER_ID);
-  console.log('✅ Drive access authorized. Upload folder: ' + folder.getName());
+  const folder = _getOrCreateUploadFolder();
+  console.log('✅ Drive access authorized. Upload folder: "' + folder.getName() + '" — ' + folder.getUrl());
 }
 
 /**
@@ -1120,6 +1129,59 @@ function grantToicOfficeAdmin() {
     console.log('✅ Updated ' + email + ' to CPD Administrator / Active.');
   }
   _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
+}
+
+/**
+ * One-time helper: run from the Apps Script editor (Run menu — not exposed
+ * to the web app) to seed 10 realistic dummy vendors covering every
+ * accreditation status, for demoing/testing the review workflow. Documents
+ * are intentionally left empty since no real files exist for dummy data —
+ * the review table will show "No documents on file" for these rows.
+ */
+function seedSampleVendors() {
+  const now = new Date().toISOString();
+  const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
+  const reviewedBy = 'toic.test@dlsl.edu.ph';
+
+  const SAMPLE_VENDORS = [
+    { company: 'ABC Construction Corp', trade: 'ABC Builders', category: 'Infrastructure & Construction', tin: '123-456-789-000', dtisec: 'SEC-CS201512345', contact: 'Juan Dela Cruz', phone: '0917-123-4567', email: 'juan.delacruz@abcconstruction.ph', address: 'Brgy. Sabang, Lipa City, Batangas', status: 'Approved' },
+    { company: 'Sunrise Trading Co.', trade: '', category: 'Goods & Supplies', tin: '234-567-890-000', dtisec: 'DTI-00123456', contact: 'Maria Santos', phone: '0918-234-5678', email: 'maria.santos@sunrisetrading.ph', address: 'Brgy. Marawoy, Lipa City, Batangas', status: 'Approved' },
+    { company: 'Metro Office Supplies Inc.', trade: 'Metro Office', category: 'Goods & Supplies', tin: '345-678-901-000', dtisec: 'SEC-CS201598765', contact: 'Roberto Reyes', phone: '0919-345-6789', email: 'roberto.reyes@metrooffice.ph', address: 'P. Torres St., Batangas City', status: 'Pending' },
+    { company: 'Green Valley Catering Services', trade: '', category: 'Food & Catering', tin: '456-789-012-000', dtisec: 'DTI-00234567', contact: 'Liza Fernandez', phone: '0920-456-7890', email: 'liza.fernandez@greenvalleycatering.ph', address: 'Brgy. Balintawak, Lipa City, Batangas', status: 'Pending' },
+    { company: 'TechPro Solutions PH', trade: 'TechPro', category: 'IT & Technology', tin: '567-890-123-000', dtisec: 'SEC-CS201611111', contact: 'Mark Villanueva', phone: '0921-567-8901', email: 'mark.villanueva@techprosolutions.ph', address: 'Ayala Highway, Lipa City, Batangas', status: 'ChangesRequested', notes: "Mayor's/Business Permit submitted has expired (2024). Please upload a current-year permit." },
+    { company: 'Prime Security Agency', trade: '', category: 'Janitorial & Security Services', tin: '678-901-234-000', dtisec: 'SEC-CS201722222', contact: 'Carlos Mendoza', phone: '0922-678-9012', email: 'carlos.mendoza@primesecurity.ph', address: 'Brgy. Tambo, Lipa City, Batangas', status: 'ChangesRequested', notes: 'BIR Certificate of Registration on file does not match the company name provided. Please re-upload the correct document.' },
+    { company: 'Lipa Printing Press', trade: '', category: 'Printing & Publication', tin: '789-012-345-000', dtisec: 'DTI-00345678', contact: 'Ana Bautista', phone: '0923-789-0123', email: 'ana.bautista@lipaprinting.ph', address: 'C.M. Recto Ave., Lipa City, Batangas', status: 'Rejected', notes: 'Incomplete submission — Tax Clearance Certificate and BIR Certificate of Registration were not provided.' },
+    { company: 'Batangas Builders Consortium', trade: 'BBC', category: 'Infrastructure & Construction', tin: '890-123-456-000', dtisec: 'SEC-CS201833333', contact: 'Ramon Aquino', phone: '0924-890-1234', email: 'ramon.aquino@batangasbuilders.ph', address: 'Brgy. Pagolingin, Batangas City', status: 'Rejected', notes: 'DTI/SEC registration submitted appears expired. Please reapply once renewed.' },
+    { company: 'Star Logistics & Freight', trade: 'Star Logistics', category: 'Transportation & Logistics', tin: '901-234-567-000', dtisec: 'SEC-CS201944444', contact: 'Ella Ramos', phone: '0925-901-2345', email: 'ella.ramos@starlogistics.ph', address: 'National Highway, Malvar, Batangas', status: 'Pending' },
+    { company: 'Golden Harvest Food Corp', trade: 'Golden Harvest', category: 'Food & Catering', tin: '012-345-678-000', dtisec: 'SEC-CS202055555', contact: 'Peter Lim', phone: '0926-012-3456', email: 'peter.lim@goldenharvest.ph', address: 'Brgy. Anilao, Mabini, Batangas', status: 'Approved' },
+  ];
+
+  const sheet = getSheet(SH.VENDORS);
+  SAMPLE_VENDORS.forEach(v => {
+    const isReviewed = v.status !== 'Pending';
+    sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
+      VendorID: _id(),
+      AccreditationNo: v.status === 'Approved' ? _nextRegistryNumber('ACC') : '',
+      CompanyName: v.company,
+      TradeName: v.trade || '',
+      BusinessCategory: v.category,
+      TINNumber: v.tin,
+      DTISECReg: v.dtisec,
+      ContactPerson: v.contact,
+      ContactNumber: v.phone,
+      Email: v.email,
+      Address: v.address,
+      Documents: JSON.stringify({}),
+      AccreditationStatus: v.status,
+      SubmittedOn: now,
+      ReviewedBy: isReviewed ? reviewedBy : '',
+      ReviewedOn: isReviewed ? now : '',
+      ReviewNotes: v.notes || '',
+      ExpiryDate: v.status === 'Approved' ? oneYear.toISOString() : '',
+      LastUpdated: now,
+    }));
+  });
+  console.log('✅ Seeded ' + SAMPLE_VENDORS.length + ' sample vendors (mix of Pending / Approved / Rejected / Changes Requested).');
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────
