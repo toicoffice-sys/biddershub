@@ -462,12 +462,25 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 // Workspace admin approval, unlike full Drive access which DLSL's domain was blocking
 // for this unverified internal script. The folder can be freely renamed/moved/shared
 // afterward in Drive; that doesn't require any re-authorization.
+//
+// IMPORTANT: drive.file scope covers "access a specific resource this app already
+// created," identified by ID — it does NOT cover searching/listing across Drive
+// (DriveApp.getFoldersByName is a search and fails under this scope even though the
+// result would only ever be an app-owned folder). So the folder is created exactly
+// once and its ID is remembered in ScriptProperties, never re-discovered by name.
 const UPLOAD_FOLDER_NAME = 'BiddersHub Documents';
+const UPLOAD_FOLDER_ID_PROP = 'uploadFolderId';
 
 function _getOrCreateUploadFolder() {
-  const it = DriveApp.getFoldersByName(UPLOAD_FOLDER_NAME);
-  if (it.hasNext()) return it.next();
-  return DriveApp.createFolder(UPLOAD_FOLDER_NAME);
+  const props = PropertiesService.getScriptProperties();
+  const storedId = props.getProperty(UPLOAD_FOLDER_ID_PROP);
+  if (storedId) {
+    try { return DriveApp.getFolderById(storedId); }
+    catch (e) { /* folder became inaccessible — fall through and create a new one */ }
+  }
+  const folder = DriveApp.createFolder(UPLOAD_FOLDER_NAME);
+  props.setProperty(UPLOAD_FOLDER_ID_PROP, folder.getId());
+  return folder;
 }
 
 function _uploadFile(base64Data, filename, mimeType) {
