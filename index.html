@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- ── TOP NAV ─────────────────────────────────────────── -->
+  <nav class="topnav">
+    <div class="topnav-inner">
+      <div class="brand">
+        <span class="brand-name">BiddersHub</span>
+        <span class="brand-sub">DLSL Central Procurement Dept.</span>
+      </div>
+      <div class="nav-actions" id="nav-actions">
+        <!-- populated by Scripts.html: renderNav() -->
+      </div>
+    </div>
+  </nav>
+
+  <div id="toast-container"></div>
+
+  <main class="container" style="flex:1; padding-bottom:40px;">
+
+    <!-- ── PUBLIC BID BOARD ─────────────────────────────── -->
+    <div id="view-public">
+      <div class="hero" style="margin: 0 -20px 0; padding-left:20px; padding-right:20px;">
+        <div class="container" style="padding:0 20px;">
+          <div class="hero-eyebrow">Bid Bulletin · Central Procurement Department</div>
+          <h1>Procurement Bidding Opportunities</h1>
+          <p>A centralized, transparent register of De La Salle Lipa bidding opportunities — giving suppliers
+             timely, self-service access to procurement information.</p>
+          <div class="register-strip" id="public-hero-stats"></div>
+        </div>
+      </div>
+      <div style="height:20px;"></div>
+
+      <div class="toolbar">
+        <input type="text" id="public-search" placeholder="Search bid opportunities…">
+        <select id="public-category-filter">
+          <option value="">All categories</option>
+        </select>
+        <button class="btn btn-outline" onclick="loadPublicBoard()">Search</button>
+      </div>
+
+      <div id="public-bid-grid" class="bid-grid"></div>
+    </div>
+
+    <!-- ── VENDOR PORTAL ────────────────────────────────── -->
+    <div id="view-vendor" class="hidden">
+      <h2>Vendor Portal</h2>
+      <div class="tabs">
+        <button class="tab active" data-tab="v-status" onclick="switchTab('vendor','v-status')">Accreditation Status</button>
+        <button class="tab" data-tab="v-browse" onclick="switchTab('vendor','v-browse')">Browse &amp; Inquire</button>
+        <button class="tab" data-tab="v-inquiries" onclick="switchTab('vendor','v-inquiries')">My Inquiries</button>
+      </div>
+      <div id="vendor-panel-v-status" class="tab-panel"></div>
+      <div id="vendor-panel-v-browse" class="tab-panel hidden">
+        <div class="toolbar">
+          <input type="text" id="vendor-search" placeholder="Search bid opportunities…">
+          <select id="vendor-category-filter"><option value="">All categories</option></select>
+          <button class="btn btn-outline" onclick="loadVendorBoard()">Search</button>
+        </div>
+        <div id="vendor-bid-grid" class="bid-grid"></div>
+      </div>
+      <div id="vendor-panel-v-inquiries" class="tab-panel hidden"></div>
+    </div>
+
+    <!-- ── STAFF / CPD PORTAL ───────────────────────────── -->
+    <div id="view-staff" class="hidden">
+      <h2>Procurement Staff Portal</h2>
+      <div class="tabs" id="staff-tabs">
+        <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">Bid Opportunities</button>
+        <button class="tab" data-tab="s-approvals" onclick="switchTab('staff','s-approvals')">Approvals</button>
+        <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')">Vendor Accreditation</button>
+        <button class="tab" data-tab="s-inquiries" onclick="switchTab('staff','s-inquiries')">Inquiries</button>
+        <button class="tab" data-tab="s-dashboard" onclick="switchTab('staff','s-dashboard')">KPI Dashboard</button>
+        <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">Staff Users</button>
+        <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">Audit Log</button>
+      </div>
+
+      <div id="staff-panel-s-mybids" class="tab-panel">
+        <div class="toolbar" style="justify-content:flex-end;">
+          <button class="btn btn-primary" onclick="openBidEditor()">+ New Bid Opportunity</button>
+        </div>
+        <div id="staff-mybids-table"></div>
+      </div>
+      <div id="staff-panel-s-approvals" class="tab-panel hidden"><div id="staff-approvals-table"></div></div>
+      <div id="staff-panel-s-vendors" class="tab-panel hidden">
+        <div class="toolbar">
+          <select id="vendor-status-filter" onchange="loadVendorApplications()">
+            <option value="">All statuses</option>
+            <option value="Pending">Pending</option>
+            <option value="Approved">Approved</option>
+            <option value="Rejected">Rejected</option>
+            <option value="Expired">Expired</option>
+          </select>
+        </div>
+        <div id="staff-vendors-table"></div>
+      </div>
+      <div id="staff-panel-s-inquiries" class="tab-panel hidden"><div id="staff-inquiries-table"></div></div>
+      <div id="staff-panel-s-dashboard" class="tab-panel hidden"><div id="staff-dashboard-content"></div></div>
+      <div id="staff-panel-s-users" class="tab-panel hidden">
+        <div class="toolbar" style="justify-content:flex-end;">
+          <button class="btn btn-primary" onclick="openUserEditor()">+ Add Staff User</button>
+        </div>
+        <div id="staff-users-table"></div>
+      </div>
+      <div id="staff-panel-s-audit" class="tab-panel hidden"><div id="staff-audit-table"></div></div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    BiddersHub — DLSL Central Procurement Department · Complies with the Data Privacy Act of 2012 (RA 10173)
+  </footer>
+</div>
+
+<!-- ── MODAL: LOGIN ──────────────────────────────────────── -->
+<div id="modal-login" class="modal-overlay hidden">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('modal-login')">&times;</button>
+    <h3>Vendor / Staff Login</h3>
+    <div id="login-step-email">
+      <p class="hint">Staff and accredited vendors sign in with the email on file. A one-time code will be sent to verify your identity.</p>
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="login-email" placeholder="you@example.com">
+      </div>
+      <button class="btn btn-primary btn-block" id="login-continue-btn" onclick="loginCheckAccess()">Continue</button>
+      <div id="login-new-vendor-hint" class="hidden" style="margin-top:14px; text-align:center;">
+        <p class="hint">This email isn't on file yet.</p>
+        <button class="link-btn" onclick="closeModal('modal-login'); openApplyModal();">Apply for vendor accreditation →</button>
+      </div>
+      <div id="login-email-error" class="error-text"></div>
+    </div>
+    <div id="login-step-otp" class="hidden">
+      <p class="hint">Enter the 6-digit code sent to <b id="login-masked-email"></b>.</p>
+      <div class="field">
+        <label>Verification code</label>
+        <input type="text" id="login-otp-code" maxlength="6" inputmode="numeric" placeholder="••••••">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="loginVerifyOtp()">Verify &amp; Sign In</button>
+      <button class="link-btn" style="margin-top:10px;" onclick="loginResendOtp()">Resend code</button>
+      <div id="login-otp-error" class="error-text"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: VENDOR ACCREDITATION APPLICATION ──────────── -->
+<div id="modal-apply" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-apply')">&times;</button>
+    <h3>Vendor Accreditation Application</h3>
+    <div id="apply-step-form">
+      <p class="hint">Submit your company details and supporting documents. Your application will be reviewed by the Central Procurement Department.</p>
+      <div class="field-row">
+        <div class="field"><label>Company Name *</label><input type="text" id="apply-companyName"></div>
+        <div class="field"><label>Trade Name</label><input type="text" id="apply-tradeName"></div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Business Category</label>
+          <select id="apply-businessCategory"><option value="">Select…</option></select>
+        </div>
+        <div class="field"><label>TIN Number</label><input type="text" id="apply-tinNumber"></div>
+      </div>
+      <div class="field"><label>DTI / SEC Registration No.</label><input type="text" id="apply-dtisecReg"></div>
+      <div class="field-row">
+        <div class="field"><label>Contact Person *</label><input type="text" id="apply-contactPerson"></div>
+        <div class="field"><label>Contact Number *</label><input type="tel" id="apply-contactNumber"></div>
+      </div>
+      <div class="field"><label>Email Address *</label><input type="email" id="apply-email"></div>
+      <div class="field"><label>Business Address</label><textarea id="apply-address"></textarea></div>
+      <div class="field">
+        <label>Accreditation Documents</label>
+        <p class="hint" style="margin-bottom:8px;">Upload one file per document (PDF/JPG/PNG/DOC, max 10MB each). Fields marked * are required.</p>
+        <div id="apply-doc-slots"></div>
+      </div>
+      <button class="btn btn-primary btn-block" id="apply-submit-btn" onclick="submitApplication()">Submit Application</button>
+      <div id="apply-error" class="error-text"></div>
+    </div>
+    <div id="apply-step-otp" class="hidden">
+      <p class="hint">Enter the 6-digit code sent to <b id="apply-masked-email"></b> to confirm your application.</p>
+      <div class="field">
+        <label>Verification code</label>
+        <input type="text" id="apply-otp-code" maxlength="6" inputmode="numeric" placeholder="••••••">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="applyVerifyOtp()">Verify &amp; Submit</button>
+      <button class="link-btn" style="margin-top:10px;" onclick="applyResendOtp()">Resend code</button>
+      <div id="apply-otp-error" class="error-text"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: BID DETAIL (public + vendor) ──────────────── -->
+<div id="modal-bid-detail" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-bid-detail')">&times;</button>
+    <div id="bid-detail-content"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: BID EDITOR (staff) ─────────────────────────── -->
+<div id="modal-bid-editor" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-bid-editor')">&times;</button>
+    <h3 id="bid-editor-title">New Bid Opportunity</h3>
+    <input type="hidden" id="editor-bid-id">
+    <div class="field"><label>Title *</label><input type="text" id="editor-title"></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Category *</label>
+        <select id="editor-category"><option value="">Select…</option></select>
+      </div>
+      <div class="field"><label>Department / Proponent</label><input type="text" id="editor-department"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Estimated Budget (PHP)</label><input type="number" id="editor-budget" min="0" step="0.01"></div>
+      <div class="field"><label>Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
+    </div>
+    <div class="field"><label>Description</label><textarea id="editor-description" rows="5"></textarea></div>
+    <div class="field">
+      <label>Bid Documents (RFQ/ToR, forms, etc.)</label>
+      <input type="file" id="editor-files" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+      <ul class="file-list" id="editor-file-list"></ul>
+    </div>
+    <div id="bid-editor-error" class="error-text"></div>
+    <div style="display:flex; gap:10px; margin-top:10px;">
+      <button class="btn btn-outline" onclick="saveBidEditor()">Save Draft</button>
+      <button class="btn btn-primary" onclick="saveBidEditor(true)">Save &amp; Submit for Approval</button>
+    </div>
+  </div>
+</div>
+
+<?!= include('Scripts'); ?>
+</body>
+</html>

@@ -1,0 +1,808 @@
+<script>
+// ── STATE ──────────────────────────────────────────────────────
+let SESSION = { token: null, user: null };
+let CATEGORIES = [];
+let DOCUMENT_TYPES = [];
+let APPLY_DOCS = {};
+let EDITOR_DOCS = [];
+let CURRENT_BID_ID = null;
+
+// ── GOOGLE.SCRIPT.RUN PROMISE WRAPPER ───────────────────────────
+function gsRun(fnName, ...args) {
+  return new Promise((resolve, reject) => {
+    google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))
+      [fnName](...args);
+  });
+}
+
+// ── UTILITIES ────────────────────────────────────────────────
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+}
+function fmtMoney(n) {
+  return '₱' + (Number(n) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+// Maps a status to an "office stamp" ink color — the same logic a real
+// procurement desk uses: blue ink for received/in-review, green for
+// approved, oxblood for closed/rejected, and no stamp at all for drafts.
+function stampClass(s) {
+  const map = {
+    Draft: 'stamp-grey', PendingApproval: 'stamp-blue', Approved: 'stamp-green',
+    Published: 'stamp-green', Closed: 'stamp-grey', Pending: 'stamp-blue',
+    Rejected: 'stamp-red', Expired: 'stamp-red', Open: 'stamp-blue', Answered: 'stamp-green',
+  };
+  return map[s] || 'stamp-grey';
+}
+function roleLabel(role) {
+  return { cpd_admin: 'CPD Administrator', cpd_officer: 'CPD Officer', proponent: 'Proponent', vendor: 'Vendor' }[role] || role;
+}
+function toast(msg, type) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (type ? ' ' + type : '');
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4200);
+}
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// ── INIT ───────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', init);
+
+async function init() {
+  try {
+    CATEGORIES = await gsRun('getCategories');
+    populateCategorySelects();
+  } catch (e) { console.error(e); }
+  try {
+    DOCUMENT_TYPES = await gsRun('getDocumentTypes');
+  } catch (e) { console.error(e); }
+
+  const savedToken = sessionStorage.getItem('bh_token');
+  if (savedToken) {
+    try {
+      const boot = await gsRun('getBootData', savedToken);
+      SESSION.token = savedToken;
+      SESSION.user = boot.user;
+      window._boot = boot;
+    } catch (e) {
+      sessionStorage.removeItem('bh_token');
+    }
+  }
+  renderNav();
+  routeToView();
+}
+
+function populateCategorySelects() {
+  const ids = ['public-category-filter', 'vendor-category-filter', 'apply-businessCategory', 'editor-category'];
+  ids.forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    CATEGORIES.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function renderNav() {
+  const actions = document.getElementById('nav-actions');
+  if (!SESSION.token) {
+    actions.innerHTML = `
+      <button class="btn btn-ghost btn-sm" onclick="openApplyModal()">Become an Accredited Vendor</button>
+      <button class="btn btn-primary btn-sm" onclick="openModal('modal-login')">Login</button>`;
+  } else {
+    const u = SESSION.user;
+    actions.innerHTML = `
+      <span class="who">${escapeHtml(u.fullName || u.email)} · ${roleLabel(u.role)}</span>
+      <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>`;
+  }
+}
+
+function routeToView() {
+  document.getElementById('view-public').classList.add('hidden');
+  document.getElementById('view-vendor').classList.add('hidden');
+  document.getElementById('view-staff').classList.add('hidden');
+
+  if (!SESSION.token) {
+    document.getElementById('view-public').classList.remove('hidden');
+    loadPublicBoard();
+    return;
+  }
+  if (SESSION.user.role === 'vendor') {
+    document.getElementById('view-vendor').classList.remove('hidden');
+    switchTab('vendor', 'v-status');
+  } else {
+    document.getElementById('view-staff').classList.remove('hidden');
+    configureStaffTabsForRole(SESSION.user.role);
+  }
+}
+
+async function doLogout() {
+  try { await gsRun('logout', SESSION.token); } catch (e) { /* ignore */ }
+  sessionStorage.removeItem('bh_token');
+  SESSION = { token: null, user: null };
+  renderNav();
+  routeToView();
+}
+
+// ── TABS ─────────────────────────────────────────────────────
+function switchTab(scope, tabId) {
+  const viewEl = document.getElementById(scope === 'staff' ? 'view-staff' : 'view-vendor');
+  viewEl.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tabId));
+  viewEl.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+  const panel = document.getElementById(`${scope}-panel-${tabId}`);
+  if (panel) panel.classList.remove('hidden');
+  loadTabData(scope, tabId);
+}
+
+function configureStaffTabsForRole(role) {
+  const cpd = role === 'cpd_admin' || role === 'cpd_officer';
+  const admin = role === 'cpd_admin';
+  document.querySelectorAll('#staff-tabs .tab').forEach(btn => {
+    const tab = btn.dataset.tab;
+    if (['s-approvals', 's-vendors', 's-inquiries', 's-dashboard'].includes(tab)) btn.style.display = cpd ? '' : 'none';
+    if (['s-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
+  });
+  switchTab('staff', 's-mybids');
+}
+
+function loadTabData(scope, tabId) {
+  if (scope === 'vendor') {
+    if (tabId === 'v-status') return loadVendorStatus();
+    if (tabId === 'v-browse') return loadVendorBoard();
+    if (tabId === 'v-inquiries') return loadMyInquiries();
+  } else {
+    if (tabId === 's-mybids') return loadMyBids();
+    if (tabId === 's-approvals') return loadApprovals();
+    if (tabId === 's-vendors') return loadVendorApplications();
+    if (tabId === 's-inquiries') return loadInquiriesForReview();
+    if (tabId === 's-dashboard') return loadDashboard();
+    if (tabId === 's-users') return loadUsers();
+    if (tabId === 's-audit') return loadAuditLog();
+  }
+}
+
+// ── PUBLIC BID BOARD ─────────────────────────────────────────
+async function loadPublicBoard() {
+  const grid = document.getElementById('public-bid-grid');
+  grid.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const filters = {
+      q: document.getElementById('public-search').value.trim(),
+      category: document.getElementById('public-category-filter').value,
+    };
+    const bids = await gsRun('getPublicBidBoard', filters);
+    renderBidGrid(grid, bids, false);
+    renderPublicHeroStats(bids);
+  } catch (e) { grid.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
+}
+
+function renderPublicHeroStats(bids) {
+  const published = bids.filter(b => b.status === 'Published').length;
+  const closed = bids.filter(b => b.status === 'Closed').length;
+  const awarded = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
+  document.getElementById('public-hero-stats').innerHTML = `
+    <div class="register-item"><div class="num">${published}</div><div class="label">Open Opportunities</div></div>
+    <div class="register-item"><div class="num">${awarded}</div><div class="label">Awarded</div></div>
+    <div class="register-item"><div class="num">${closed}</div><div class="label">Closed / Archived</div></div>`;
+}
+
+function renderBidGrid(container, bids, vendorMode) {
+  if (!bids.length) { container.innerHTML = '<div class="empty-state">No bid opportunities found.</div>'; return; }
+  container.innerHTML = bids.map(b => `
+    <div class="card bid-card" onclick="openBidDetail('${b.bidId}')">
+      <span class="stamp ${stampClass(b.status)}">${escapeHtml(b.status)}${b.outcome ? ' · ' + escapeHtml(b.outcome) : ''}</span>
+      <div class="control-no">${escapeHtml(b.referenceNo || '')}</div>
+      <h3>${escapeHtml(b.title)}</h3>
+      <div class="meta">${escapeHtml(b.category)} ${b.department ? '· ' + escapeHtml(b.department) : ''} · Deadline: ${fmtDate(b.submissionDeadline)}</div>
+      <div class="desc">${escapeHtml((b.description || '').slice(0, 140))}${(b.description || '').length > 140 ? '…' : ''}</div>
+    </div>`).join('');
+}
+
+async function openBidDetail(bidId) {
+  CURRENT_BID_ID = bidId;
+  try {
+    const res = await gsRun('getBidById', bidId);
+    if (!res.success) { toast(res.message, 'error'); return; }
+    renderBidDetail(res.bid, res.inquiries);
+    openModal('modal-bid-detail');
+  } catch (e) { toast('Failed to load bid opportunity.', 'error'); }
+}
+
+function renderBidDetail(bid, inquiries) {
+  let html = `
+    <span class="stamp ${stampClass(bid.status)}">${escapeHtml(bid.status)}${bid.outcome ? ' · ' + escapeHtml(bid.outcome) : ''}</span>
+    <div class="control-no" style="margin-top:8px;">${escapeHtml(bid.referenceNo || '')}</div>
+    <h2>${escapeHtml(bid.title)}</h2>
+    <div class="hint">${escapeHtml(bid.category)} ${bid.department ? '· ' + escapeHtml(bid.department) : ''}</div>
+    <p style="margin-top:10px;">${escapeHtml(bid.description || '').replace(/\n/g, '<br>')}</p>
+    <div class="field-row">
+      <div><b>Estimated Budget:</b> ${fmtMoney(bid.estimatedBudget)}</div>
+      <div><b>Submission Deadline:</b> ${fmtDate(bid.submissionDeadline)}</div>
+    </div>
+    <div class="hint">Published: ${fmtDate(bid.publishedOn)}${bid.closedOn ? ' · Closed: ' + fmtDate(bid.closedOn) : ''}</div>`;
+
+  if (bid.documents && bid.documents.length) {
+    html += `<h4 style="margin-top:16px;">Documents</h4><ul class="file-list">` +
+      bid.documents.map(d => `<li><a href="${d.url}" target="_blank" rel="noopener">${escapeHtml(d.name)}</a></li>`).join('') + `</ul>`;
+  }
+
+  html += `<h4 style="margin-top:16px;">Questions &amp; Answers</h4>`;
+  if (inquiries.length) {
+    html += inquiries.map(q => `
+      <div class="card card-tight" style="background:var(--paper-2);">
+        <div><b>Q:</b> ${escapeHtml(q.question)}</div>
+        <div style="margin-top:4px;"><b>A:</b> ${escapeHtml(q.response)}</div>
+        <div class="hint">${fmtDate(q.respondedOn)}</div>
+      </div>`).join('');
+  } else {
+    html += `<p class="hint">No questions have been answered yet.</p>`;
+  }
+
+  if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
+    html += `
+      <div class="field" style="margin-top:14px;">
+        <label>Ask a question about this bid opportunity</label>
+        <textarea id="inquiry-question" rows="3"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="submitInquiryForBid('${bid.bidId}')">Submit Question</button>
+      <div id="inquiry-error" class="error-text"></div>`;
+  } else if (!SESSION.token && bid.status === 'Published') {
+    html += `<p class="hint">Sign in as an accredited vendor to submit an inquiry.</p>`;
+  }
+  document.getElementById('bid-detail-content').innerHTML = html;
+}
+
+// ── LOGIN (EMAIL + OTP) ────────────────────────────────────────
+async function loginCheckAccess() {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-email-error');
+  errEl.textContent = '';
+  document.getElementById('login-new-vendor-hint').classList.add('hidden');
+  try {
+    const res = await gsRun('checkAccess', email);
+    if (res.step === 'otp') {
+      document.getElementById('login-masked-email').textContent = res.maskedEmail;
+      document.getElementById('login-step-email').classList.add('hidden');
+      document.getElementById('login-step-otp').classList.remove('hidden');
+      await gsRun('sendOTP', email);
+    } else if (res.step === 'new_vendor') {
+      document.getElementById('login-new-vendor-hint').classList.remove('hidden');
+    } else {
+      errEl.textContent = res.message || 'Account not found.';
+    }
+  } catch (e) { errEl.textContent = 'Something went wrong. Please try again.'; }
+}
+
+async function loginResendOtp() {
+  const email = document.getElementById('login-email').value.trim();
+  try { await gsRun('sendOTP', email); toast('A new code has been sent.', 'success'); }
+  catch (e) { toast('Failed to resend code.', 'error'); }
+}
+
+async function loginVerifyOtp() {
+  const email = document.getElementById('login-email').value.trim();
+  const code = document.getElementById('login-otp-code').value.trim();
+  const errEl = document.getElementById('login-otp-error');
+  errEl.textContent = '';
+  try {
+    const res = await gsRun('verifyOTP', email, code);
+    if (!res.success) { errEl.textContent = res.message; return; }
+    completeLogin(res.token, res.user);
+    closeModal('modal-login');
+    resetLoginModal();
+  } catch (e) { errEl.textContent = 'Verification failed. Please try again.'; }
+}
+
+function resetLoginModal() {
+  document.getElementById('login-step-otp').classList.add('hidden');
+  document.getElementById('login-step-email').classList.remove('hidden');
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-otp-code').value = '';
+}
+
+async function completeLogin(token, user) {
+  SESSION.token = token;
+  SESSION.user = user;
+  sessionStorage.setItem('bh_token', token);
+  try { window._boot = await gsRun('getBootData', token); } catch (e) { /* non-fatal */ }
+  renderNav();
+  routeToView();
+  toast('Signed in as ' + (user.fullName || user.email), 'success');
+}
+
+// ── VENDOR ACCREDITATION APPLICATION ────────────────────────────
+function openApplyModal() {
+  APPLY_DOCS = {};
+  renderApplyDocSlots();
+  document.getElementById('apply-step-otp').classList.add('hidden');
+  document.getElementById('apply-step-form').classList.remove('hidden');
+  document.getElementById('apply-error').textContent = '';
+  openModal('modal-apply');
+}
+
+function renderApplyDocSlots() {
+  const container = document.getElementById('apply-doc-slots');
+  container.innerHTML = DOCUMENT_TYPES.map(t => `
+    <div class="doc-slot" id="doc-slot-${t.key}">
+      <div class="doc-info">
+        <div class="doc-label">${escapeHtml(t.label)}${t.required ? ' <span class="req">*</span>' : ''}</div>
+        ${t.hint ? `<div class="doc-hint">${escapeHtml(t.hint)}</div>` : ''}
+        <div class="doc-status" id="doc-status-${t.key}">No file chosen</div>
+      </div>
+      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleApplyDocFile('${t.key}', this)">
+    </div>`).join('');
+}
+
+async function handleApplyDocFile(docKey, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  const email = document.getElementById('apply-email').value.trim();
+  if (!email) { toast('Please enter your email address before attaching documents.', 'error'); inputEl.value = ''; return; }
+  const statusEl = document.getElementById('doc-status-' + docKey);
+  statusEl.textContent = 'Uploading ' + file.name + '…';
+  statusEl.className = 'doc-status uploading';
+  try {
+    const base64 = await fileToBase64(file);
+    const info = await gsRun('uploadVendorDocument', email, base64, file.name, file.type);
+    APPLY_DOCS[docKey] = info;
+    statusEl.textContent = info.name + ' — uploaded';
+    statusEl.className = 'doc-status uploaded';
+  } catch (err) {
+    statusEl.textContent = file.name + ' — failed: ' + (err.message || String(err));
+    statusEl.className = 'doc-status failed';
+    inputEl.value = '';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const editorFilesInput = document.getElementById('editor-files');
+  if (editorFilesInput) editorFilesInput.addEventListener('change', handleEditorFiles);
+});
+
+async function submitApplication() {
+  const errEl = document.getElementById('apply-error');
+  errEl.textContent = '';
+  const d = {
+    companyName: document.getElementById('apply-companyName').value.trim(),
+    tradeName: document.getElementById('apply-tradeName').value.trim(),
+    businessCategory: document.getElementById('apply-businessCategory').value,
+    tinNumber: document.getElementById('apply-tinNumber').value.trim(),
+    dtisecReg: document.getElementById('apply-dtisecReg').value.trim(),
+    contactPerson: document.getElementById('apply-contactPerson').value.trim(),
+    contactNumber: document.getElementById('apply-contactNumber').value.trim(),
+    email: document.getElementById('apply-email').value.trim(),
+    address: document.getElementById('apply-address').value.trim(),
+    documents: APPLY_DOCS,
+  };
+  try {
+    const res = await gsRun('submitAccreditationApplication', d);
+    if (!res.success) { errEl.textContent = res.message; return; }
+    document.getElementById('apply-masked-email').textContent = res.maskedEmail;
+    document.getElementById('apply-step-form').classList.add('hidden');
+    document.getElementById('apply-step-otp').classList.remove('hidden');
+  } catch (e) { errEl.textContent = 'Something went wrong. Please try again.'; }
+}
+
+async function applyResendOtp() {
+  const email = document.getElementById('apply-email').value.trim();
+  try { await gsRun('sendOTP', email); toast('A new code has been sent.', 'success'); }
+  catch (e) { toast('Failed to resend code.', 'error'); }
+}
+
+async function applyVerifyOtp() {
+  const email = document.getElementById('apply-email').value.trim();
+  const code = document.getElementById('apply-otp-code').value.trim();
+  const errEl = document.getElementById('apply-otp-error');
+  errEl.textContent = '';
+  try {
+    const res = await gsRun('verifyOTP', email, code);
+    if (!res.success) { errEl.textContent = res.message; return; }
+    completeLogin(res.token, res.user);
+    closeModal('modal-apply');
+    toast('Application submitted. The CPD will review it shortly.', 'success');
+  } catch (e) { errEl.textContent = 'Verification failed. Please try again.'; }
+}
+
+// ── VENDOR PORTAL ────────────────────────────────────────────
+async function loadVendorStatus() {
+  const el = document.getElementById('vendor-panel-v-status');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getMyVendorProfile', SESSION.token);
+    renderVendorStatusPanel(res.profile);
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your accreditation status.</p>'; }
+}
+
+function renderVendorStatusPanel(p) {
+  const el = document.getElementById('vendor-panel-v-status');
+  if (!p) { el.innerHTML = '<div class="empty-state">No accreditation record found.</div>'; return; }
+  el.innerHTML = `
+    <div class="card">
+      <span class="stamp ${stampClass(p.AccreditationStatus)}">${escapeHtml(p.AccreditationStatus)}</span>
+      ${p.AccreditationNo ? `<div class="control-no" style="margin-top:8px;">${escapeHtml(p.AccreditationNo)}</div>` : ''}
+      <h3 style="margin-top:8px;">${escapeHtml(p.CompanyName)}</h3>
+      <p class="hint">${escapeHtml(p.ContactPerson)} · ${escapeHtml(p.ContactNumber)} · ${escapeHtml(p.Email)}</p>
+      ${p.SubmittedOn ? `<p class="hint">Submitted: ${fmtDate(p.SubmittedOn)}</p>` : ''}
+      ${p.ReviewedOn ? `<p class="hint">Reviewed: ${fmtDate(p.ReviewedOn)} by ${escapeHtml(p.ReviewedBy)}</p>` : ''}
+      ${p.ReviewNotes ? `<p><b>Notes:</b> ${escapeHtml(p.ReviewNotes)}</p>` : ''}
+      ${p.ExpiryDate ? `<p class="hint">Valid until: ${fmtDate(p.ExpiryDate)}</p>` : ''}
+      <h4 style="margin-top:12px;">Submitted Documents</h4>
+      ${renderDocList(p.documents)}
+    </div>`;
+}
+
+/** Renders the checklist of uploaded accreditation documents by type, using DOCUMENT_TYPES for labels. */
+function renderDocList(docsObj) {
+  if (!docsObj) return '<p class="hint">No documents on file.</p>';
+  const items = DOCUMENT_TYPES.filter(t => docsObj[t.key] && docsObj[t.key].url);
+  if (!items.length) return '<p class="hint">No documents on file.</p>';
+  return `<ul class="file-list">` + items.map(t =>
+    `<li><a href="${docsObj[t.key].url}" target="_blank" rel="noopener">${escapeHtml(t.label)}</a></li>`
+  ).join('') + `</ul>`;
+}
+
+async function loadVendorBoard() {
+  const grid = document.getElementById('vendor-bid-grid');
+  grid.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const filters = {
+      q: document.getElementById('vendor-search').value.trim(),
+      category: document.getElementById('vendor-category-filter').value,
+    };
+    const bids = await gsRun('getPublicBidBoard', filters);
+    renderBidGrid(grid, bids, true);
+  } catch (e) { grid.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
+}
+
+async function submitInquiryForBid(bidId) {
+  const q = document.getElementById('inquiry-question').value.trim();
+  const errEl = document.getElementById('inquiry-error');
+  errEl.textContent = '';
+  if (!q) { errEl.textContent = 'Please enter your question.'; return; }
+  try {
+    await gsRun('submitInquiry', SESSION.token, bidId, q);
+    toast('Your question has been submitted to the CPD.', 'success');
+    closeModal('modal-bid-detail');
+  } catch (e) { errEl.textContent = e.message || 'Failed to submit question.'; }
+}
+
+async function loadMyInquiries() {
+  const el = document.getElementById('vendor-panel-v-inquiries');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getMyInquiries', SESSION.token);
+    if (!res.inquiries.length) { el.innerHTML = '<div class="empty-state">You haven\'t submitted any inquiries yet.</div>'; return; }
+    el.innerHTML = res.inquiries.map(q => `
+      <div class="card">
+        <span class="stamp ${stampClass(q.Status)}">${escapeHtml(q.Status)}</span>
+        <p style="margin-top:8px;"><b>Q:</b> ${escapeHtml(q.Question)}</p>
+        ${q.Response ? `<p><b>A:</b> ${escapeHtml(q.Response)}</p>` : '<p class="hint">Awaiting response from the CPD.</p>'}
+        <p class="hint">Submitted ${fmtDate(q.SubmittedOn)}</p>
+      </div>`).join('');
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your inquiries.</p>'; }
+}
+
+// ── STAFF: BID OPPORTUNITIES ───────────────────────────────────
+async function loadMyBids() {
+  const el = document.getElementById('staff-mybids-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getMyBids', SESSION.token);
+    renderMyBidsTable(res.bids);
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
+}
+
+function bidActionsHtml(b) {
+  const isOwner = b.CreatedBy === SESSION.user.email;
+  const cpd = SESSION.user.role === 'cpd_admin' || SESSION.user.role === 'cpd_officer';
+  const btns = [];
+  if (b.Status === 'Draft' && (isOwner || cpd)) {
+    btns.push(`<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`);
+    btns.push(`<button class="btn btn-sm btn-primary" onclick="submitForApproval('${b.BidID}')">Submit</button>`);
+  }
+  if (b.Status === 'PendingApproval' && cpd) {
+    btns.push(`<button class="btn btn-sm btn-primary" onclick="approveBidAction('${b.BidID}')">Approve</button>`);
+    btns.push(`<button class="btn btn-sm btn-danger" onclick="rejectBidAction('${b.BidID}')">Reject</button>`);
+  }
+  if (b.Status === 'Approved' && cpd) {
+    btns.push(`<button class="btn btn-sm btn-primary" onclick="publishBidAction('${b.BidID}')">Publish</button>`);
+  }
+  if (b.Status === 'Published' && cpd) {
+    btns.push(`<button class="btn btn-sm btn-outline" onclick="closeBidAction('${b.BidID}')">Close</button>`);
+  }
+  return btns.join(' ') || '<span class="hint">—</span>';
+}
+
+function renderMyBidsTable(bids) {
+  const el = document.getElementById('staff-mybids-table');
+  if (!bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities yet.</div>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Reference</th><th>Title</th><th>Category</th><th>Status</th><th>Deadline</th><th>Actions</th></tr></thead><tbody>` +
+    bids.map(b => `<tr>
+      <td class="control-no">${escapeHtml(b.ReferenceNo || '')}</td>
+      <td>${escapeHtml(b.Title)}</td>
+      <td>${escapeHtml(b.Category)}</td>
+      <td><span class="stamp ${stampClass(b.Status)}">${escapeHtml(b.Status)}</span></td>
+      <td>${fmtDate(b.SubmissionDeadline)}</td>
+      <td>${bidActionsHtml(b)}</td>
+    </tr>`).join('') + `</tbody></table>`;
+}
+
+async function submitForApproval(bidId) {
+  try { await gsRun('submitBidForApproval', SESSION.token, bidId); toast('Submitted for CPD approval.', 'success'); loadMyBids(); }
+  catch (e) { toast(e.message || 'Failed to submit.', 'error'); }
+}
+async function approveBidAction(bidId) {
+  try { await gsRun('approveBid', SESSION.token, bidId, ''); toast('Bid opportunity approved.', 'success'); loadMyBids(); loadApprovals(); }
+  catch (e) { toast(e.message || 'Failed to approve.', 'error'); }
+}
+async function rejectBidAction(bidId) {
+  const notes = window.prompt('Reason for returning this bid to draft:') || '';
+  try { await gsRun('rejectBid', SESSION.token, bidId, notes); toast('Bid opportunity returned to draft.', 'success'); loadMyBids(); loadApprovals(); }
+  catch (e) { toast(e.message || 'Failed to reject.', 'error'); }
+}
+async function publishBidAction(bidId) {
+  try { await gsRun('publishBid', SESSION.token, bidId); toast('Bid opportunity published.', 'success'); loadMyBids(); }
+  catch (e) { toast(e.message || 'Failed to publish.', 'error'); }
+}
+async function closeBidAction(bidId) {
+  const outcome = window.prompt('Enter outcome exactly as: Awarded, Cancelled, or No Award');
+  if (!outcome) return;
+  try { await gsRun('closeBid', SESSION.token, bidId, outcome.trim()); toast('Bid opportunity closed.', 'success'); loadMyBids(); }
+  catch (e) { toast(e.message || 'Failed to close.', 'error'); }
+}
+
+async function loadApprovals() {
+  const el = document.getElementById('staff-approvals-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getMyBids', SESSION.token, 'PendingApproval');
+    if (!res.bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities awaiting approval.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Reference</th><th>Title</th><th>Proponent</th><th>Category</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
+      res.bids.map(b => `<tr>
+        <td class="control-no">${escapeHtml(b.ReferenceNo || '')}</td>
+        <td>${escapeHtml(b.Title)}</td><td>${escapeHtml(b.CreatedBy)}</td><td>${escapeHtml(b.Category)}</td>
+        <td>${fmtDate(b.SubmittedOn)}</td><td>${bidActionsHtml(b)}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load approvals.</p>'; }
+}
+
+function openBidEditor(bidId) {
+  EDITOR_DOCS = [];
+  document.getElementById('editor-file-list').innerHTML = '';
+  document.getElementById('bid-editor-error').textContent = '';
+  document.getElementById('editor-bid-id').value = bidId || '';
+  document.getElementById('bid-editor-title').textContent = bidId ? 'Edit Bid Opportunity' : 'New Bid Opportunity';
+  if (bidId) {
+    gsRun('getMyBids', SESSION.token).then(res => {
+      const b = res.bids.find(x => x.BidID === bidId);
+      if (!b) return;
+      document.getElementById('editor-title').value = b.Title || '';
+      document.getElementById('editor-category').value = b.Category || '';
+      document.getElementById('editor-department').value = b.Department || '';
+      document.getElementById('editor-budget').value = b.EstimatedBudget || '';
+      document.getElementById('editor-deadline').value = (b.SubmissionDeadline || '').slice(0, 16);
+      document.getElementById('editor-description').value = b.Description || '';
+      EDITOR_DOCS = b.documents || [];
+      renderEditorFileList();
+    });
+  } else {
+    ['editor-title', 'editor-category', 'editor-department', 'editor-budget', 'editor-deadline', 'editor-description']
+      .forEach(id => document.getElementById(id).value = '');
+  }
+  openModal('modal-bid-editor');
+}
+
+function renderEditorFileList() {
+  document.getElementById('editor-file-list').innerHTML = EDITOR_DOCS
+    .map(d => `<li><span>${escapeHtml(d.name)}</span> <span class="hint">uploaded</span></li>`).join('');
+}
+
+async function handleEditorFiles(e) {
+  const listEl = document.getElementById('editor-file-list');
+  for (const file of e.target.files) {
+    const li = document.createElement('li');
+    li.textContent = 'Uploading ' + file.name + '…';
+    listEl.appendChild(li);
+    try {
+      const base64 = await fileToBase64(file);
+      const info = await gsRun('uploadBidDocument', SESSION.token, base64, file.name, file.type);
+      EDITOR_DOCS.push(info);
+      li.innerHTML = `<span>${escapeHtml(info.name)}</span> <span class="hint">uploaded</span>`;
+    } catch (err) {
+      li.innerHTML = `<span class="error-text">${escapeHtml(file.name)} — failed: ${escapeHtml(err.message || String(err))}</span>`;
+    }
+  }
+  e.target.value = '';
+}
+
+async function saveBidEditor(submitAfter) {
+  const errEl = document.getElementById('bid-editor-error');
+  errEl.textContent = '';
+  const bidId = document.getElementById('editor-bid-id').value;
+  const d = {
+    title: document.getElementById('editor-title').value.trim(),
+    category: document.getElementById('editor-category').value,
+    department: document.getElementById('editor-department').value.trim(),
+    estimatedBudget: document.getElementById('editor-budget').value,
+    submissionDeadline: document.getElementById('editor-deadline').value,
+    description: document.getElementById('editor-description').value.trim(),
+    documents: EDITOR_DOCS,
+  };
+  try {
+    let id = bidId;
+    if (bidId) { await gsRun('updateBid', SESSION.token, bidId, d); }
+    else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
+    if (submitAfter) await gsRun('submitBidForApproval', SESSION.token, id);
+    closeModal('modal-bid-editor');
+    toast('Bid opportunity saved.', 'success');
+    loadMyBids();
+  } catch (e) { errEl.textContent = e.message || 'Failed to save bid opportunity.'; }
+}
+
+// ── STAFF: VENDOR ACCREDITATION REVIEW ──────────────────────────
+async function loadVendorApplications() {
+  const el = document.getElementById('staff-vendors-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  const statusFilter = document.getElementById('vendor-status-filter').value;
+  try {
+    const res = await gsRun('getAccreditationApplications', SESSION.token, statusFilter);
+    if (!res.vendors.length) { el.innerHTML = '<div class="empty-state">No vendor applications found.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Reference</th><th>Company</th><th>Contact</th><th>Documents</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
+      res.vendors.map(v => `<tr>
+        <td class="control-no">${escapeHtml(v.AccreditationNo || '—')}</td>
+        <td>${escapeHtml(v.CompanyName)}</td>
+        <td>${escapeHtml(v.ContactPerson)}<br><span class="hint">${escapeHtml(v.Email)}</span></td>
+        <td>${renderDocList(v.documents)}</td>
+        <td><span class="stamp ${stampClass(v.AccreditationStatus)}">${escapeHtml(v.AccreditationStatus)}</span></td>
+        <td>${fmtDate(v.SubmittedOn)}</td>
+        <td>${v.AccreditationStatus === 'Pending'
+          ? `<button class="btn btn-sm btn-primary" onclick="reviewVendorAction('${v.VendorID}','Approved')">Approve</button>
+             <button class="btn btn-sm btn-danger" onclick="reviewVendorAction('${v.VendorID}','Rejected')">Reject</button>`
+          : '<span class="hint">—</span>'}
+        </td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load vendor applications.</p>'; }
+}
+
+async function reviewVendorAction(vendorId, decision) {
+  const notes = window.prompt(decision === 'Approved' ? 'Approval notes (optional):' : 'Reason for rejection:') || '';
+  if (decision === 'Rejected' && !notes) { toast('A rejection reason is required.', 'error'); return; }
+  try {
+    await gsRun('reviewAccreditation', SESSION.token, vendorId, decision, notes, '');
+    toast('Vendor application ' + decision.toLowerCase() + '.', 'success');
+    loadVendorApplications();
+  } catch (e) { toast(e.message || 'Failed to review application.', 'error'); }
+}
+
+// ── STAFF: INQUIRIES REVIEW ──────────────────────────────────────
+async function loadInquiriesForReview() {
+  const el = document.getElementById('staff-inquiries-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getInquiriesForReview', SESSION.token);
+    if (!res.inquiries.length) { el.innerHTML = '<div class="empty-state">No inquiries yet.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Vendor</th><th>Question</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
+      res.inquiries.map(q => `<tr>
+        <td>${escapeHtml(q.VendorName)}<br><span class="hint">${escapeHtml(q.VendorEmail)}</span></td>
+        <td>${escapeHtml(q.Question)}${q.Response ? `<br><span class="hint"><b>A:</b> ${escapeHtml(q.Response)}</span>` : ''}</td>
+        <td><span class="stamp ${stampClass(q.Status)}">${escapeHtml(q.Status)}</span></td>
+        <td>${fmtDate(q.SubmittedOn)}</td>
+        <td>${q.Status === 'Open' ? `<button class="btn btn-sm btn-primary" onclick="respondToInquiryAction('${q.InquiryID}')">Respond</button>` : '<span class="hint">—</span>'}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load inquiries.</p>'; }
+}
+
+async function respondToInquiryAction(inquiryId) {
+  const response = window.prompt('Your response to this inquiry:');
+  if (!response || !response.trim()) return;
+  try {
+    await gsRun('respondToInquiry', SESSION.token, inquiryId, response.trim());
+    toast('Response sent.', 'success');
+    loadInquiriesForReview();
+  } catch (e) { toast(e.message || 'Failed to respond.', 'error'); }
+}
+
+// ── STAFF: KPI DASHBOARD ─────────────────────────────────────────
+async function loadDashboard() {
+  const el = document.getElementById('staff-dashboard-content');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getDashboardStats', SESSION.token);
+    renderDashboard(res.stats);
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load dashboard.</p>'; }
+}
+
+function renderDashboard(s) {
+  const el = document.getElementById('staff-dashboard-content');
+  const tiles = [
+    ['Total Bid Opportunities', s.totalBids],
+    ['Published', s.publishedCount],
+    ['% Published Within 1 Business Day', s.pctWithin1BusinessDay + '%'],
+    ['Avg. Approval → Publish (hrs)', s.avgApprovalToPublishHours],
+    ['Accredited Vendors', s.approvedVendors],
+    ['Pending Vendor Applications', s.pendingVendors],
+    ['Total Inquiries', s.totalInquiries],
+    ['Open Inquiries', s.openInquiries],
+  ];
+  el.innerHTML = `<div class="stat-grid">` +
+    tiles.map(([label, num]) => `<div class="stat-tile"><div class="num">${num}</div><div class="label">${label}</div></div>`).join('') +
+    `</div>
+    <div class="card">
+      <h4>Bid Opportunities by Status</h4>
+      <table><tbody>` +
+      Object.keys(s.byStatus).map(k => `<tr><td>${escapeHtml(k)}</td><td>${s.byStatus[k]}</td></tr>`).join('') +
+      `</tbody></table>
+    </div>`;
+}
+
+// ── STAFF: USERS MANAGEMENT (cpd_admin only) ─────────────────────
+async function loadUsers() {
+  const el = document.getElementById('staff-users-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getUsers', SESSION.token);
+    el.innerHTML = `<table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>` +
+      res.users.map(u => `<tr>
+        <td>${escapeHtml(u.Email)}</td><td>${escapeHtml(u.FullName)}</td><td>${escapeHtml(roleLabel(u.Role))}</td>
+        <td>${escapeHtml(u.Department)}</td><td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
+        <td>${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : '<span class="hint">—</span>'}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users.</p>'; }
+}
+
+async function openUserEditor() {
+  const email = window.prompt('Staff email address (@dlsl.edu.ph):');
+  if (!email) return;
+  const fullName = window.prompt('Full name:');
+  if (!fullName) return;
+  const role = window.prompt('Role — enter exactly one of: cpd_admin, cpd_officer, proponent');
+  if (!['cpd_admin', 'cpd_officer', 'proponent'].includes(role)) { toast('Invalid role.', 'error'); return; }
+  const department = window.prompt('Department:') || '';
+  try {
+    await gsRun('saveUser', SESSION.token, { email, fullName, role, department });
+    toast('Staff user saved.', 'success');
+    loadUsers();
+  } catch (e) { toast(e.message || 'Failed to save staff user.', 'error'); }
+}
+
+async function deactivateUserAction(userId) {
+  if (!window.confirm('Deactivate this staff user?')) return;
+  try { await gsRun('deactivateUser', SESSION.token, userId); toast('Staff user deactivated.', 'success'); loadUsers(); }
+  catch (e) { toast(e.message || 'Failed to deactivate.', 'error'); }
+}
+
+// ── STAFF: AUDIT LOG (cpd_admin only) ────────────────────────────
+async function loadAuditLog() {
+  const el = document.getElementById('staff-audit-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getAuditLog', SESSION.token, 150);
+    if (!res.logs.length) { el.innerHTML = '<div class="empty-state">No audit log entries yet.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>` +
+      res.logs.map(l => `<tr>
+        <td>${fmtDate(l.Timestamp)}</td><td>${escapeHtml(l.ActorEmail)}</td><td>${escapeHtml(l.Action)}</td>
+        <td>${escapeHtml(l.EntityType)}</td><td>${escapeHtml(l.Details)}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load audit log.</p>'; }
+}
+</script>
