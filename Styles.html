@@ -154,6 +154,26 @@
     font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: rgba(239,243,238,.62); margin-top: 2px;
   }
 
+  /* ── Workflow illustration (light-background counterpart to the register strip) ── */
+  .flow-card {
+    background: var(--paper); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+    border: 1px solid rgba(20,40,25,.06); padding: 22px 24px; margin: 22px 0;
+  }
+  .flow-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+  .flow-subtitle { color: var(--ink-faint); font-size: .85rem; margin-bottom: 18px; max-width: 720px; }
+  .flow-steps { display: flex; align-items: stretch; gap: 0; }
+  .flow-step { flex: 1; min-width: 0; padding: 0 18px; }
+  .flow-step:first-child { padding-left: 0; }
+  .flow-step:last-child { padding-right: 0; }
+  .flow-step-num {
+    font-family: var(--mono); font-size: .7rem; color: var(--ink-faint); margin-bottom: 8px; letter-spacing: .04em;
+  }
+  .flow-step p { font-size: .83rem; color: var(--ink-soft); margin: 10px 0 0; line-height: 1.45; }
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center; color: var(--line);
+    font-size: 1.2rem; padding: 0 2px; flex-shrink: 0;
+  }
+
   /* ── Toolbar / filters ────────────────────────────── */
   .toolbar { display: flex; gap: 10px; margin: 20px 0; flex-wrap: wrap; align-items: center; }
   .toolbar input[type="text"], .toolbar select { flex: 1; min-width: 160px; }
@@ -267,5 +287,10 @@
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
     .register-strip { flex-wrap: wrap; }
     .register-item { min-width: 45%; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .flow-steps { flex-direction: column; }
+    .flow-step { padding: 14px 0; border-bottom: 1px dashed var(--line); }
+    .flow-step:first-child, .flow-step:last-child { padding-left: 0; padding-right: 0; }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-arrow { transform: rotate(90deg); padding: 2px 0; }
   }
 </style>
