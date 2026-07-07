@@ -550,7 +550,7 @@ async function loadVendorStatus() {
   try {
     const res = await gsRun('getMyVendorProfile', SESSION.token);
     renderVendorStatusPanel(res.profile);
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your accreditation status.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your accreditation status. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 function renderVendorStatusPanel(p) {
@@ -679,7 +679,7 @@ async function loadMyInquiries() {
         ${q.Response ? `<p><b>A:</b> ${escapeHtml(q.Response)}</p>` : '<p class="hint">Awaiting response from the CPD.</p>'}
         <p class="hint">Submitted ${fmtDate(q.SubmittedOn)}</p>
       </div>`).join('');
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your inquiries.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load your inquiries. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 // ── STAFF: BID OPPORTUNITIES ───────────────────────────────────
@@ -689,7 +689,7 @@ async function loadMyBids() {
   try {
     const res = await gsRun('getMyBids', SESSION.token);
     renderMyBidsTable(res.bids);
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load bid opportunities. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 function bidActionsHtml(b) {
@@ -728,7 +728,7 @@ async function viewSubmissions(bidId) {
         <td>${fmtDate(s.SubmittedOn)}</td>
         <td>${renderDocList(s.documents, BID_SUBMISSION_DOCUMENT_TYPES)}</td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load submissions.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load submissions. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 function renderMyBidsTable(bids) {
@@ -781,7 +781,7 @@ async function loadApprovals() {
         <td>${escapeHtml(b.Title)}</td><td>${escapeHtml(b.CreatedBy)}</td><td>${escapeHtml(b.Category)}</td>
         <td>${fmtDate(b.SubmittedOn)}</td><td>${bidActionsHtml(b)}</td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load approvals.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load approvals. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 function openBidEditor(bidId) {
@@ -893,7 +893,7 @@ async function loadVendorApplications() {
             : '<span class="hint">—</span>')}
         </td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load vendor applications.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load vendor applications. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 async function reviewVendorAction(vendorId, decision) {
@@ -933,7 +933,7 @@ async function loadInquiriesForReview() {
         <td>${fmtDate(q.SubmittedOn)}</td>
         <td>${q.Status === 'Open' ? `<button class="btn btn-sm btn-primary" onclick="respondToInquiryAction('${q.InquiryID}')">Respond</button>` : '<span class="hint">—</span>'}</td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load inquiries.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load inquiries. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 async function respondToInquiryAction(inquiryId) {
@@ -953,7 +953,7 @@ async function loadDashboard() {
   try {
     const res = await gsRun('getDashboardStats', SESSION.token);
     renderDashboard(res.stats);
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load dashboard.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load dashboard. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 function renderDashboard(s) {
@@ -991,7 +991,7 @@ async function loadUsers() {
         <td>${escapeHtml(u.Department)}</td><td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
         <td>${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : '<span class="hint">—</span>'}</td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
 async function openUserEditor() {
@@ -1027,6 +1027,6 @@ async function loadAuditLog() {
         <td>${fmtDate(l.Timestamp)}</td><td>${escapeHtml(l.ActorEmail)}</td><td>${escapeHtml(l.Action)}</td>
         <td>${escapeHtml(l.EntityType)}</td><td>${escapeHtml(l.Details)}</td>
       </tr>`).join('') + `</tbody></table>`;
-  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load audit log.</p>'; }
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load audit log. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 </script>
