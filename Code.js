@@ -1067,6 +1067,18 @@ function getBootData(token) {
 }
 
 /**
+ * One-time helper: run this from the Apps Script editor (Run menu — NOT
+ * reachable from the web app) to force the Drive authorization prompt.
+ * setup() and grantToicOfficeAdmin() never call DriveApp, so running them
+ * does not grant Drive access even after "Allow" — this function's only
+ * job is to touch DriveApp so the consent screen has to ask for it.
+ */
+function authorizeDriveAccess() {
+  const folder = DriveApp.getFolderById(UPLOAD_FOLDER_ID);
+  console.log('✅ Drive access authorized. Upload folder: ' + folder.getName());
+}
+
+/**
  * One-time helper: grants (or upgrades) a staff account to CPD Administrator.
  * Safe to run anytime — adds a new row if the email isn't in the Users sheet
  * yet, or upgrades the existing row to cpd_admin/Active if it is. Run this
