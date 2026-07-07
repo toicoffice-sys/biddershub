@@ -25,20 +25,22 @@
 
   <div id="toast-container"></div>
 
+  <!-- Full-width hero — sibling of <main>, not constrained by .container's max-width -->
+  <div class="hero" id="public-hero">
+    <div class="container">
+      <div class="hero-eyebrow">Bid Bulletin · Central Procurement Department</div>
+      <h1>Procurement Bidding Opportunities</h1>
+      <p>A centralized, transparent register of De La Salle Lipa bidding opportunities — giving suppliers
+         timely, self-service access to procurement information.</p>
+      <div class="register-strip" id="public-hero-stats"></div>
+    </div>
+  </div>
+
   <main class="container" style="flex:1; padding-bottom:40px;">
 
     <!-- ── PUBLIC BID BOARD ─────────────────────────────── -->
     <div id="view-public">
-      <div class="hero" style="margin: 0 -20px 0; padding-left:20px; padding-right:20px;">
-        <div class="container" style="padding:0 20px;">
-          <div class="hero-eyebrow">Bid Bulletin · Central Procurement Department</div>
-          <h1>Procurement Bidding Opportunities</h1>
-          <p>A centralized, transparent register of De La Salle Lipa bidding opportunities — giving suppliers
-             timely, self-service access to procurement information.</p>
-          <div class="register-strip" id="public-hero-stats"></div>
-        </div>
-      </div>
-      <div style="height:20px;"></div>
+      <div style="height:24px;"></div>
 
       <div class="toolbar">
         <input type="text" id="public-search" placeholder="Search bid opportunities…">

@@ -121,9 +121,11 @@ function routeToView() {
   document.getElementById('view-public').classList.add('hidden');
   document.getElementById('view-vendor').classList.add('hidden');
   document.getElementById('view-staff').classList.add('hidden');
+  document.getElementById('public-hero').classList.add('hidden');
 
   if (!SESSION.token) {
     document.getElementById('view-public').classList.remove('hidden');
+    document.getElementById('public-hero').classList.remove('hidden');
     loadPublicBoard();
     return;
   }

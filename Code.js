@@ -904,6 +904,33 @@ function getBootData(token) {
   return payload;
 }
 
+/**
+ * One-time helper: grants (or upgrades) a staff account to CPD Administrator.
+ * Safe to run anytime — adds a new row if the email isn't in the Users sheet
+ * yet, or upgrades the existing row to cpd_admin/Active if it is. Run this
+ * from the Apps Script editor (select "grantToicOfficeAdmin" → Run) to fix
+ * "this email isn't on file yet" for the TOIC office account.
+ */
+function grantToicOfficeAdmin() {
+  const email = 'toic.office@dlsl.edu.ph';
+  const sheet = getSheet(SH.USERS);
+  const rowIndex = _findRowIndex(sheet, 'Email', email);
+  const now = new Date().toISOString();
+  if (rowIndex === -1) {
+    sheet.appendRow(_rowFromObj(USER_HEADERS, {
+      UserID: _id(), Email: email, FullName: 'TOIC Office', Role: 'cpd_admin',
+      Department: 'TOIC', Status: 'Active', AddedBy: 'system', AddedOn: now,
+    }));
+    console.log('✅ Added ' + email + ' as CPD Administrator.');
+  } else {
+    const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
+    obj.Role = 'cpd_admin';
+    obj.Status = 'Active';
+    _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
+    console.log('✅ Updated ' + email + ' to CPD Administrator / Active.');
+  }
+}
+
 // ── SETUP ─────────────────────────────────────────────────────────
 function setup() {
   _initUsers();

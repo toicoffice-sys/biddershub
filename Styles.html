@@ -126,25 +126,29 @@
   .card-tight { padding: 14px 16px; }
 
   /* ── Hero / register strip ─────────────────────────── */
+  /* Deliberately lighter than the nav's --g900 so the two chrome layers read
+     as distinct: dark institutional bar on top, a lighter banner beneath it. */
   .hero {
-    background: var(--g900);
+    width: 100%;
+    background: var(--g600);
     background-image:
-      radial-gradient(ellipse 900px 240px at 15% -20%, rgba(255,255,255,.05), transparent 60%);
-    color: #EFF3EE; padding: 40px 0 0;
+      radial-gradient(ellipse 1100px 280px at 12% -30%, rgba(255,255,255,.08), transparent 60%);
+    color: #EFF3EE; padding: 44px 0 0;
+    box-shadow: 0 10px 20px -12px rgba(10,25,15,.35);
   }
   .hero-eyebrow {
     font-family: var(--mono); font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
-    color: rgba(239,243,238,.6); margin-bottom: 10px;
+    color: rgba(239,243,238,.68); margin-bottom: 10px;
   }
   .hero h1 { font-size: 1.85rem; color: #fff; max-width: 720px; }
-  .hero p { opacity: .82; max-width: 620px; font-size: .96rem; }
+  .hero p { opacity: .85; max-width: 620px; font-size: .96rem; }
 
   .register-strip {
-    display: flex; gap: 0; margin-top: 24px; border-top: 1px solid rgba(255,255,255,.14);
+    display: flex; gap: 0; margin-top: 24px; border-top: 1px solid rgba(255,255,255,.18);
     overflow-x: auto;
   }
   .register-item {
-    flex: 1; min-width: 140px; padding: 14px 20px; border-right: 1px solid rgba(255,255,255,.14);
+    flex: 1; min-width: 140px; padding: 16px 20px 20px; border-right: 1px solid rgba(255,255,255,.18);
   }
   .register-item:last-child { border-right: none; }
   .register-item .num { font-family: var(--mono); font-size: 1.5rem; font-weight: 600; color: #fff; }
