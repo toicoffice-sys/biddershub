@@ -101,6 +101,7 @@
           <select id="vendor-status-filter" onchange="loadVendorApplications()">
             <option value="">All statuses</option>
             <option value="Pending">Pending</option>
+            <option value="ChangesRequested">Changes Requested</option>
             <option value="Approved">Approved</option>
             <option value="Rejected">Rejected</option>
             <option value="Expired">Expired</option>
@@ -139,10 +140,12 @@
 
         <div class="card">
           <h3>2. Become an accredited vendor</h3>
-          <p>Click <b>Become an Accredited Vendor</b> in the top navigation and fill in your company
+          <p>Click <b>Become an Accredited Vendor</b> in the top navigation. First, enter your email and
+             verify it with the 6-digit code sent to you — this happens before anything else, so no
+             document can be uploaded under an unverified address. Once verified, fill in your company
              name, trade name, business category, TIN number, DTI/SEC registration number, contact
-             person, contact number, email, and business address.</p>
-          <p>Then upload your accreditation documents — <b>one file per document</b>, not a bulk upload:</p>
+             person, contact number, and business address.</p>
+          <p>Then upload your accreditation documents — <b>one PDF file per document</b>, not a bulk upload:</p>
           <table>
             <thead><tr><th>Document</th><th>Required?</th><th>Notes</th></tr></thead>
             <tbody>
@@ -155,9 +158,9 @@
               <tr><td>Latest Audited Financial Statement</td><td>Optional</td><td>Stamped "received" by BIR</td></tr>
             </tbody>
           </table>
-          <p class="hint" style="margin-top:8px;">Files must be PDF, JPG, PNG, or DOC/DOCX, max 10MB each.
-             After submitting, a 6-digit code is emailed to you — enter it to confirm your application.
-             Status starts as <span class="stamp stamp-blue">Pending</span>.</p>
+          <p class="hint" style="margin-top:8px;">Files must be PDF only, max 10MB each. For security, you
+             verify your email with a 6-digit code <b>before</b> you can upload anything or fill in the
+             form. Once submitted, your status starts as <span class="stamp stamp-blue">Pending</span>.</p>
         </div>
 
         <div class="card">
@@ -190,7 +193,7 @@
           <ul>
             <li><b>Didn't receive the code?</b> Check spam/junk, then use Resend code (codes expire after 10 minutes; you can request a new one after 60 seconds).</li>
             <li><b>"An accreditation record already exists"?</b> You already have a Pending or Approved application — contact the CPD to make changes.</li>
-            <li><b>Can't upload a document?</b> Confirm it's under 10MB and one of: PDF, JPG, PNG, DOC, DOCX.</li>
+            <li><b>Can't upload a document?</b> Confirm it's a PDF file under 10MB.</li>
           </ul>
         </div>
       </div>
@@ -224,10 +227,14 @@
 
         <div class="card">
           <h3>Reviewing vendor accreditation</h3>
-          <p>The <b>Vendor Accreditation</b> tab lists applications with each applicant's uploaded documents
-             as clickable links — review them before deciding. <b>Approve</b> assigns a permanent
-             accreditation number and 1-year validity. <b>Reject</b> requires a reason, which the vendor
-             sees and can use to correct and re-apply.</p>
+          <p>The <b>Vendor Accreditation</b> tab lists applications with each applicant's uploaded PDF
+             documents as clickable links — review them before deciding on a Pending application.
+             <b>Approve</b> assigns a permanent accreditation number and 1-year validity.
+             <b>Request Changes</b> is for incomplete or incorrect submissions — it requires a note,
+             emails the vendor automatically, and lets them replace just the affected documents without
+             a full re-application. Use <b>Resend Reminder</b> if they haven't acted yet.
+             <b>Reject</b> is a hard stop requiring a reason — the vendor would need to start a fresh
+             application to try again.</p>
         </div>
 
         <div class="card">
@@ -301,8 +308,28 @@
   <div class="modal" style="max-width:720px;">
     <button class="modal-close" onclick="closeModal('modal-apply')">&times;</button>
     <h3>Vendor Accreditation Application</h3>
-    <div id="apply-step-form">
-      <p class="hint">Submit your company details and supporting documents. Your application will be reviewed by the Central Procurement Department.</p>
+
+    <!-- Step 1: verify email BEFORE anything can be uploaded -->
+    <div id="apply-step-verify-email">
+      <p class="hint">For security, we verify your email before you can upload any documents.</p>
+      <div class="field"><label>Email address</label><input type="email" id="apply-verify-email"></div>
+      <button class="btn btn-primary btn-block" onclick="applyStartVerification()">Send Verification Code</button>
+      <div id="apply-verify-email-error" class="error-text"></div>
+    </div>
+    <div id="apply-step-verify-otp" class="hidden">
+      <p class="hint">Enter the 6-digit code sent to <b id="apply-verify-masked-email"></b>.</p>
+      <div class="field">
+        <label>Verification code</label>
+        <input type="text" id="apply-verify-otp-code" maxlength="6" inputmode="numeric" placeholder="••••••">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="applyConfirmEmail()">Verify Email</button>
+      <button class="link-btn" style="margin-top:10px;" onclick="applyResendVerification()">Resend code</button>
+      <div id="apply-verify-otp-error" class="error-text"></div>
+    </div>
+
+    <!-- Step 2: application form + document uploads — only reachable once verified -->
+    <div id="apply-step-form" class="hidden">
+      <p class="hint">Email verified: <b id="apply-verified-email-display"></b>. Submit your company details and supporting documents — your application will be reviewed by the Central Procurement Department.</p>
       <div class="field-row">
         <div class="field"><label>Company Name *</label><input type="text" id="apply-companyName"></div>
         <div class="field"><label>Trade Name</label><input type="text" id="apply-tradeName"></div>
@@ -319,25 +346,14 @@
         <div class="field"><label>Contact Person *</label><input type="text" id="apply-contactPerson"></div>
         <div class="field"><label>Contact Number *</label><input type="tel" id="apply-contactNumber"></div>
       </div>
-      <div class="field"><label>Email Address *</label><input type="email" id="apply-email"></div>
       <div class="field"><label>Business Address</label><textarea id="apply-address"></textarea></div>
       <div class="field">
         <label>Accreditation Documents</label>
-        <p class="hint" style="margin-bottom:8px;">Upload one file per document (PDF/JPG/PNG/DOC, max 10MB each). Fields marked * are required.</p>
+        <p class="hint" style="margin-bottom:8px;">Upload one PDF file per document, max 10MB each. Fields marked * are required.</p>
         <div id="apply-doc-slots"></div>
       </div>
       <button class="btn btn-primary btn-block" id="apply-submit-btn" onclick="submitApplication()">Submit Application</button>
       <div id="apply-error" class="error-text"></div>
-    </div>
-    <div id="apply-step-otp" class="hidden">
-      <p class="hint">Enter the 6-digit code sent to <b id="apply-masked-email"></b> to confirm your application.</p>
-      <div class="field">
-        <label>Verification code</label>
-        <input type="text" id="apply-otp-code" maxlength="6" inputmode="numeric" placeholder="••••••">
-      </div>
-      <button class="btn btn-primary btn-block" onclick="applyVerifyOtp()">Verify &amp; Submit</button>
-      <button class="link-btn" style="margin-top:10px;" onclick="applyResendOtp()">Resend code</button>
-      <div id="apply-otp-error" class="error-text"></div>
     </div>
   </div>
 </div>
@@ -370,9 +386,9 @@
     </div>
     <div class="field"><label>Description</label><textarea id="editor-description" rows="5"></textarea></div>
     <div class="field">
-      <label>Bid Documents (RFQ/ToR, forms, etc.)</label>
-      <input type="file" id="editor-files" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
-      <ul class="file-list" id="editor-file-list"></ul>
+      <label>Bid Documents</label>
+      <p class="hint" style="margin-bottom:8px;">Upload one PDF file per document, max 10MB each. Fields marked * are required before submitting for approval.</p>
+      <div id="editor-doc-slots"></div>
     </div>
     <div id="bid-editor-error" class="error-text"></div>
     <div style="display:flex; gap:10px; margin-top:10px;">

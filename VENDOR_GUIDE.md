@@ -15,15 +15,21 @@ contact the CPD about a specific bid.
 
 ## 2. Becoming an accredited vendor
 
-Click **Become an Accredited Vendor** in the top navigation and fill in:
+Click **Become an Accredited Vendor** in the top navigation.
+
+**Step 1 — Verify your email.** Enter your email and click **Send Verification Code**, then enter
+the 6-digit code sent to it. This happens *before* anything else — for security, no document can
+be uploaded and no application form appears until your email is verified.
+
+**Step 2 — Fill in the form.** Once verified, provide:
 
 - Company name, trade name, business category
 - TIN number, DTI/SEC registration number
-- Contact person, contact number, email address
+- Contact person, contact number
 - Business address
 
-Then upload your accreditation documents. Each document has its **own upload slot** — one file
-per slot, not a bulk upload:
+**Step 3 — Upload documents.** Each document has its **own upload slot** — one PDF file per slot,
+not a bulk upload:
 
 **Required:**
 | Document | Notes |
@@ -40,11 +46,10 @@ per slot, not a bulk upload:
 | PhilGEPS Registration Certificate | Platinum membership |
 | Latest Audited Financial Statement | Stamped "received" by BIR |
 
-Files must be PDF, JPG, PNG, or DOC/DOCX, max 10MB each.
+Files must be **PDF only**, max 10MB each.
 
-After clicking **Submit Application**, a 6-digit code is emailed to you. Enter it to confirm —
-this verifies the email is really yours before your application reaches the CPD's review queue.
-Your application status starts as **Pending**.
+Click **Submit Application** — since your email was already verified in Step 1, you're signed in
+immediately with your application status set to **Pending**.
 
 ## 3. Signing in
 
@@ -57,6 +62,9 @@ Once signed in, the **Accreditation Status** tab shows:
 
 - Your current status, stamped like an office document:
   - **Blue "Pending"** — submitted, awaiting CPD review
+  - **Blue "Changes Requested"** — the CPD found something incomplete or incorrect; the reviewer's
+    notes explain what to fix, and a form to replace the affected documents appears right there —
+    no need to start over. Resubmitting sends it back to Pending automatically.
   - **Green "Approved"** — accredited; your accreditation number and validity date appear here
   - **Red "Rejected"** — see the reviewer's notes for the reason; you may re-apply with corrected documents
 - The documents you submitted, each linked so you can confirm what's on file
@@ -79,4 +87,4 @@ same answer.
   minutes and you can request a new one after 60 seconds.
 - **"An accreditation record already exists for this email"** — you already have a Pending or
   Approved application. Contact the CPD directly to make changes.
-- **Can't upload a document?** Confirm it's under 10MB and one of: PDF, JPG, PNG, DOC, DOCX.
+- **Can't upload a document?** Confirm it's a PDF file under 10MB.

@@ -46,7 +46,23 @@ const DOCUMENT_TYPES = [
 
 function getDocumentTypes() { return DOCUMENT_TYPES; }
 
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
+// Standard Philippine bid bulletin package (RA 9184 IRR-aligned). Same
+// one-file-per-slot pattern as vendor accreditation — a bid posting is a
+// specific, named set of documents, not a bulk attachment dump.
+const BID_DOCUMENT_TYPES = [
+  { key: 'rfqItb',              label: 'Request for Quotation / Invitation to Bid', hint: 'The formal RFQ or ITB document', required: true },
+  { key: 'tor',                 label: 'Terms of Reference / Technical Specifications', hint: '', required: true },
+  { key: 'boq',                 label: 'Bill of Quantities / Price Schedule',        hint: 'For goods and infrastructure procurement', required: false },
+  { key: 'bidForm',             label: 'Bid Form / Price Quotation Form',           hint: 'The form suppliers fill in when submitting a bid', required: false },
+  { key: 'eligibilityChecklist',label: 'Eligibility Requirements Checklist',        hint: 'Per RA 9184 IRR', required: false },
+  { key: 'draftContract',       label: 'Draft Contract / Purchase Order',           hint: '', required: false },
+  { key: 'plansSpecs',          label: 'Plans / Drawings / Specifications',         hint: 'For infrastructure or construction projects, if applicable', required: false },
+];
+
+function getBidDocumentTypes() { return BID_DOCUMENT_TYPES; }
+
+const SESSION_TTL_MS  = 8 * 60 * 60 * 1000; // 8 hours
+const APP_TOKEN_TTL_MS = 60 * 60 * 1000;    // 1 hour to finish an accreditation application after verifying email
 const CACHE_TTL_S    = 300;                 // 5 min
 const CACHE_BIDS     = 'cache_bids_v1';
 
@@ -321,9 +337,11 @@ function _dispatchOTP(email) {
 }
 
 /**
- * verifyOTP(email, code) — validates the OTP and creates a session.
- * If this completes a new vendor application (status PendingVerification),
- * the application is flipped to Pending (submitted, awaiting CPD review).
+ * verifyOTP(email, code) — Step 2 of EXISTING-account login (staff or an
+ * already-registered vendor). Validates the OTP and creates a session.
+ * New vendor applications never go through this — see startVendorVerification
+ * / confirmVendorEmail below, which verify the email BEFORE any Vendor row
+ * exists or any document can be uploaded.
  */
 function verifyOTP(email, code) {
   const normalized  = (email || '').trim().toLowerCase();
@@ -356,11 +374,6 @@ function verifyOTP(email, code) {
   }
   if (!user) return { success: false, message: 'Account not found.' };
 
-  if (user.accountType === 'vendor' && user.vendorStatus === 'PendingVerification') {
-    _finalizeVendorApplication(user.vendorID);
-    user.vendorStatus = 'Pending';
-  }
-
   const token = createSession(normalized, user);
   _logRaw(user, 'LOGIN', 'Session', user.userID || user.vendorID, 'Logged in via Email OTP');
   return { success: true, token, user };
@@ -371,21 +384,77 @@ function logout(token) {
   return { success: true };
 }
 
-function _finalizeVendorApplication(vendorId) {
-  const sheet = getSheet(SH.VENDORS);
-  const rowIndex = _findRowIndex(sheet, 'VendorID', vendorId);
-  if (rowIndex === -1) return;
-  const obj = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
-  obj.AccreditationStatus = 'Pending';
-  obj.SubmittedOn = new Date().toISOString();
-  _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
+// ── NEW VENDOR EMAIL VERIFICATION (must happen BEFORE any upload) ─────
+/**
+ * startVendorVerification(email) — Step 1 of a NEW (or re-applying) vendor
+ * application. Sends an OTP without creating any Vendor row and without
+ * allowing any upload yet — verification always comes first.
+ */
+function startVendorVerification(email) {
+  const normalized = (email || '').trim().toLowerCase();
+  if (!_isValidEmail(normalized)) return { success: false, message: 'Please enter a valid email address.' };
+
+  const vSheet = getSheet(SH.VENDORS);
+  const rowIndex = _findRowIndex(vSheet, 'Email', normalized);
+  if (rowIndex !== -1) {
+    const status = _rowObjectAt(vSheet, VENDOR_HEADERS, rowIndex).AccreditationStatus;
+    if (['Pending', 'Approved'].includes(status)) {
+      return { success: false, message: 'An accreditation record already exists for this email (status: ' + status + '). Contact the CPD to make changes.' };
+    }
+  }
+  return _dispatchOTP(normalized);
+}
+
+/**
+ * confirmVendorEmail(email, code) — Step 2. Validates the OTP and issues a
+ * short-lived application token (NOT a login session) proving this email is
+ * verified. Every subsequent upload and the final submission are gated by
+ * this token instead of the raw email, so nothing can be uploaded or
+ * submitted under an address nobody has proven ownership of.
+ */
+function confirmVendorEmail(email, code) {
+  const normalized  = (email || '').trim().toLowerCase();
+  const trimmedCode = (code || '').trim();
+  if (!normalized) return { success: false, message: 'Invalid session. Please start again.' };
+  if (!/^\d{6}$/.test(trimmedCode)) return { success: false, message: 'Please enter a valid 6-digit code.' };
+
+  const propKey = 'otp_' + normalized;
+  const raw = PropertiesService.getScriptProperties().getProperty(propKey);
+  if (!raw) return { success: false, message: 'No verification code found. Please request a new one.' };
+
+  let otpData;
+  try { otpData = JSON.parse(raw); }
+  catch (e) { return { success: false, message: 'Code data corrupted. Please request a new one.' }; }
+
+  if (Date.now() > otpData.expiry) {
+    PropertiesService.getScriptProperties().deleteProperty(propKey);
+    return { success: false, message: 'Code expired. Please request a new one.' };
+  }
+  if (otpData.code !== trimmedCode) return { success: false, message: 'Incorrect code. Please try again.' };
+  PropertiesService.getScriptProperties().deleteProperty(propKey);
+
+  const appToken = Utilities.getUuid().replace(/-/g, '') + Date.now().toString(36);
+  const expiry = Date.now() + APP_TOKEN_TTL_MS;
+  PropertiesService.getScriptProperties().setProperty('apptoken_' + appToken, JSON.stringify({ email: normalized, expiry }));
+  return { success: true, appToken };
+}
+
+function _resolveAppToken(appToken) {
+  if (!appToken) throw new Error('Your email verification has expired. Please verify your email again.');
+  const raw = PropertiesService.getScriptProperties().getProperty('apptoken_' + appToken);
+  if (!raw) throw new Error('Your email verification has expired. Please verify your email again.');
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (e) { throw new Error('Your email verification has expired. Please verify your email again.'); }
+  if (Date.now() > data.expiry) {
+    PropertiesService.getScriptProperties().deleteProperty('apptoken_' + appToken);
+    throw new Error('Your email verification has expired. Please verify your email again.');
+  }
+  return data.email;
 }
 
 // ── FILE UPLOADS (Drive) ───────────────────────────────────────
-const ALLOWED_UPLOAD_MIME = [
-  'application/pdf', 'image/png', 'image/jpeg', 'image/jpg',
-  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-];
+const ALLOWED_UPLOAD_MIME = ['application/pdf'];
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 
 // All vendor accreditation and bid documents are stored in this pre-existing Drive folder.
@@ -402,9 +471,20 @@ function _uploadFile(base64Data, filename, mimeType) {
   return { name: filename, url: file.getUrl(), fileId: file.getId() };
 }
 
-/** Used during accreditation application, before a session exists. */
-function uploadVendorDocument(email, base64Data, filename, mimeType) {
-  if (!_isValidEmail((email || '').trim().toLowerCase())) throw new Error('Invalid email.');
+/**
+ * Requires a verified-email application token (see confirmVendorEmail) —
+ * this is what actually enforces "verify before upload": there is no path
+ * to this function that accepts an unverified email.
+ */
+function uploadVendorDocument(appToken, base64Data, filename, mimeType) {
+  _resolveAppToken(appToken);
+  return _uploadFile(base64Data, filename, mimeType);
+}
+
+/** Used by an already-logged-in vendor updating documents after a ChangesRequested review. */
+function uploadVendorDocumentAuthenticated(token, base64Data, filename, mimeType) {
+  const user = requireAuth(token);
+  if (user.role !== 'vendor') throw new Error('Vendor authorization required.');
   return _uploadFile(base64Data, filename, mimeType);
 }
 
@@ -416,76 +496,79 @@ function uploadBidDocument(token, base64Data, filename, mimeType) {
 }
 
 // ── VENDOR ACCREDITATION APPLICATION ───────────────────────────
-function submitAccreditationApplication(d) {
-  const email = (d.email || '').trim().toLowerCase();
-  if (!_isValidEmail(email)) return { success: false, message: 'Please enter a valid email address.' };
-  if (!d.companyName || !d.companyName.trim()) return { success: false, message: 'Company name is required.' };
-  if (!d.contactPerson || !d.contactPerson.trim()) return { success: false, message: 'Contact person is required.' };
-  if (!d.contactNumber || !d.contactNumber.trim()) return { success: false, message: 'Contact number is required.' };
+/**
+ * submitAccreditationApplication(appToken, d) — Step 3 of a new/re-applying
+ * vendor. The email was already verified in confirmVendorEmail, so this just
+ * records the application and logs the vendor straight in (no second OTP
+ * round-trip). Throws on validation failure.
+ */
+function submitAccreditationApplication(appToken, d) {
+  const email = _resolveAppToken(appToken);
+  if (!d.companyName || !d.companyName.trim()) throw new Error('Company name is required.');
+  if (!d.contactPerson || !d.contactPerson.trim()) throw new Error('Contact person is required.');
+  if (!d.contactNumber || !d.contactNumber.trim()) throw new Error('Contact number is required.');
+  if (d.companyName.trim().length > 200) throw new Error('Company name is too long.');
+  if (d.contactPerson.trim().length > 120) throw new Error('Contact person name is too long.');
   const docs = (d.documents && typeof d.documents === 'object') ? d.documents : {};
   const missing = DOCUMENT_TYPES.filter(t => t.required && !(docs[t.key] && docs[t.key].url)).map(t => t.label);
-  if (missing.length) return { success: false, message: 'Please upload the following required documents: ' + missing.join(', ') + '.' };
-  if (d.companyName.trim().length > 200) return { success: false, message: 'Company name is too long.' };
-  if (d.contactPerson.trim().length > 120) return { success: false, message: 'Contact person name is too long.' };
+  if (missing.length) throw new Error('Please upload the following required documents: ' + missing.join(', ') + '.');
 
   const sheet = getSheet(SH.VENDORS);
-  const data  = sheet.getDataRange().getValues();
   const now   = new Date().toISOString();
+  const rowIndex = _findRowIndex(sheet, 'Email', email);
+  let vendorId;
 
-  if (data.length > 1) {
-    const h = data[0];
-    const iEmail  = h.indexOf('Email');
-    const iStatus = h.indexOf('AccreditationStatus');
-    for (let i = 1; i < data.length; i++) {
-      if ((data[i][iEmail] || '').toString().toLowerCase() === email) {
-        const status = data[i][iStatus];
-        if (status === 'Pending' || status === 'Approved') {
-          return { success: false, message: 'An accreditation record already exists for this email (status: ' + status + '). Contact the CPD to make changes.' };
-        }
-        // Rejected / Expired / PendingVerification — update in place and re-verify
-        const rowIndex = i + 1;
-        const obj = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
-        Object.assign(obj, {
-          CompanyName: d.companyName.trim(),
-          TradeName: (d.tradeName || '').trim(),
-          BusinessCategory: (d.businessCategory || '').trim(),
-          TINNumber: (d.tinNumber || '').trim(),
-          DTISECReg: (d.dtisecReg || '').trim(),
-          ContactPerson: d.contactPerson.trim(),
-          ContactNumber: d.contactNumber.trim(),
-          Email: email,
-          Address: (d.address || '').trim(),
-          Documents: JSON.stringify(d.documents),
-          AccreditationStatus: 'PendingVerification',
-          SubmittedOn: '', ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
-          LastUpdated: now,
-        });
-        _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
-        _dispatchOTP(email);
-        return { success: true, step: 'otp', maskedEmail: _maskEmail(email) };
-      }
+  if (rowIndex !== -1) {
+    const existing = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
+    if (['Pending', 'Approved'].includes(existing.AccreditationStatus)) {
+      throw new Error('An accreditation record already exists for this email. Contact the CPD to make changes.');
     }
+    vendorId = existing.VendorID;
+    const obj = Object.assign({}, existing, {
+      CompanyName: d.companyName.trim(),
+      TradeName: (d.tradeName || '').trim(),
+      BusinessCategory: (d.businessCategory || '').trim(),
+      TINNumber: (d.tinNumber || '').trim(),
+      DTISECReg: (d.dtisecReg || '').trim(),
+      ContactPerson: d.contactPerson.trim(),
+      ContactNumber: d.contactNumber.trim(),
+      Email: email,
+      Address: (d.address || '').trim(),
+      Documents: JSON.stringify(docs),
+      AccreditationStatus: 'Pending',
+      SubmittedOn: now, ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
+      LastUpdated: now,
+    });
+    _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
+  } else {
+    vendorId = _id();
+    sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
+      VendorID: vendorId,
+      CompanyName: d.companyName.trim(),
+      TradeName: (d.tradeName || '').trim(),
+      BusinessCategory: (d.businessCategory || '').trim(),
+      TINNumber: (d.tinNumber || '').trim(),
+      DTISECReg: (d.dtisecReg || '').trim(),
+      ContactPerson: d.contactPerson.trim(),
+      ContactNumber: d.contactNumber.trim(),
+      Email: email,
+      Address: (d.address || '').trim(),
+      Documents: JSON.stringify(docs),
+      AccreditationStatus: 'Pending',
+      SubmittedOn: now, ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
+      LastUpdated: now,
+    }));
   }
 
-  const vendorId = _id();
-  sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
-    VendorID: vendorId,
-    CompanyName: d.companyName.trim(),
-    TradeName: (d.tradeName || '').trim(),
-    BusinessCategory: (d.businessCategory || '').trim(),
-    TINNumber: (d.tinNumber || '').trim(),
-    DTISECReg: (d.dtisecReg || '').trim(),
-    ContactPerson: d.contactPerson.trim(),
-    ContactNumber: d.contactNumber.trim(),
-    Email: email,
-    Address: (d.address || '').trim(),
-    Documents: JSON.stringify(d.documents),
-    AccreditationStatus: 'PendingVerification',
-    SubmittedOn: '', ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
-    LastUpdated: now,
-  }));
-  _dispatchOTP(email);
-  return { success: true, step: 'otp', maskedEmail: _maskEmail(email) };
+  PropertiesService.getScriptProperties().deleteProperty('apptoken_' + appToken);
+
+  const user = {
+    vendorID: vendorId, fullName: d.contactPerson.trim(), companyName: d.companyName.trim(),
+    role: 'vendor', vendorStatus: 'Pending', email, accountType: 'vendor',
+  };
+  const token = createSession(email, user);
+  _logRaw(user, 'CREATE', 'VendorAccreditation', vendorId, 'Submitted accreditation application');
+  return { success: true, token, user };
 }
 
 function _getVendorProfileByEmail(email) {
@@ -504,16 +587,36 @@ function getMyVendorProfile(token) {
 function getAccreditationApplications(token, statusFilter) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
-  let rows = sheetToObjects(getSheet(SH.VENDORS)).filter(v => v.AccreditationStatus !== 'PendingVerification');
+  let rows = sheetToObjects(getSheet(SH.VENDORS));
   if (statusFilter) rows = rows.filter(v => v.AccreditationStatus === statusFilter);
   rows.sort((a, b) => new Date(b.SubmittedOn || 0) - new Date(a.SubmittedOn || 0));
   return { success: true, vendors: rows.map(v => ({ ...v, documents: _safeParseJSON(v.Documents, {}) })) };
 }
 
+function _emailVendor(email, subject, bodyIntro) {
+  try {
+    MailApp.sendEmail({
+      to: email,
+      subject: 'BiddersHub — ' + subject,
+      body: bodyIntro + '\n\n— DLSL Central Procurement Department · BiddersHub',
+    });
+  } catch (e) { console.error('_emailVendor failed for ' + email + ':', e); }
+}
+
+/**
+ * reviewAccreditation — CPD decides on a Pending application:
+ *   Approved          — assigns a permanent accreditation number
+ *   Rejected          — hard stop; vendor must start a fresh application
+ *   ChangesRequested  — soft stop; vendor is emailed the specific issue and
+ *                       can fix/re-upload documents without re-verifying
+ *                       their email (see updateVendorDocuments below)
+ */
 function reviewAccreditation(token, vendorId, decision, notes, expiryDate) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
-  if (!['Approved', 'Rejected'].includes(decision)) throw new Error('Invalid decision.');
+  const ALLOWED = ['Approved', 'Rejected', 'ChangesRequested'];
+  if (!ALLOWED.includes(decision)) throw new Error('Invalid decision.');
+  if (decision !== 'Approved' && (!notes || !notes.trim())) throw new Error('Please explain the reason for this decision.');
 
   const sheet = getSheet(SH.VENDORS);
   const rowIndex = _findRowIndex(sheet, 'VendorID', vendorId);
@@ -529,13 +632,69 @@ function reviewAccreditation(token, vendorId, decision, notes, expiryDate) {
   if (decision === 'Approved') {
     const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
     obj.ExpiryDate = expiryDate || oneYear.toISOString();
-  }
-  if (decision === 'Approved' && !obj.AccreditationNo) {
-    obj.AccreditationNo = _nextRegistryNumber('ACC');
+    if (!obj.AccreditationNo) obj.AccreditationNo = _nextRegistryNumber('ACC');
   }
   obj.LastUpdated = now;
   _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
   _logRaw(user, 'REVIEW', 'VendorAccreditation', vendorId, decision + ': ' + (notes || ''));
+
+  if (decision === 'ChangesRequested') {
+    _emailVendor(obj.Email, 'Action Needed on Your Accreditation Application',
+      'The CPD has reviewed your accreditation application for ' + obj.CompanyName + ' and needs ' +
+      'some corrections before it can be approved:\n\n' + notes.trim() + '\n\n' +
+      'Please log in to BiddersHub and update your documents from the Accreditation Status tab.');
+  }
+  return { success: true };
+}
+
+/** CPD can re-send the same revision-needed reminder if a vendor hasn't acted yet. */
+function resendVendorReminder(token, vendorId) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const sheet = getSheet(SH.VENDORS);
+  const rowIndex = _findRowIndex(sheet, 'VendorID', vendorId);
+  if (rowIndex === -1) throw new Error('Vendor application not found.');
+  const obj = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
+  if (obj.AccreditationStatus !== 'ChangesRequested') throw new Error('This vendor is not currently awaiting revision.');
+  _emailVendor(obj.Email, 'Reminder: Action Needed on Your Accreditation Application',
+    'This is a reminder that your accreditation application for ' + obj.CompanyName + ' needs corrections:\n\n' +
+    obj.ReviewNotes + '\n\nPlease log in to BiddersHub and update your documents from the Accreditation Status tab.');
+  _logRaw(user, 'REMIND', 'VendorAccreditation', vendorId, 'Resent revision reminder');
+  return { success: true };
+}
+
+/**
+ * updateVendorDocuments — a vendor already sitting in ChangesRequested fixes
+ * their details/documents and resubmits. No re-verification needed since
+ * they're acting from an authenticated session, not a fresh application.
+ */
+function updateVendorDocuments(token, d) {
+  const user = requireAuth(token);
+  if (user.role !== 'vendor') throw new Error('Vendor authorization required.');
+  const sheet = getSheet(SH.VENDORS);
+  const rowIndex = _findRowIndex(sheet, 'Email', user.email);
+  if (rowIndex === -1) throw new Error('Vendor record not found.');
+  const obj = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
+  if (obj.AccreditationStatus !== 'ChangesRequested') throw new Error('Your application is not currently awaiting revision.');
+
+  if (d.companyName) obj.CompanyName = d.companyName.trim();
+  if (d.tradeName !== undefined) obj.TradeName = d.tradeName.trim();
+  if (d.businessCategory !== undefined) obj.BusinessCategory = d.businessCategory;
+  if (d.tinNumber !== undefined) obj.TINNumber = d.tinNumber.trim();
+  if (d.dtisecReg !== undefined) obj.DTISECReg = d.dtisecReg.trim();
+  if (d.contactPerson) obj.ContactPerson = d.contactPerson.trim();
+  if (d.contactNumber) obj.ContactNumber = d.contactNumber.trim();
+  if (d.address !== undefined) obj.Address = d.address.trim();
+  if (d.documents && typeof d.documents === 'object') {
+    const existingDocs = _safeParseJSON(obj.Documents, {});
+    obj.Documents = JSON.stringify(Object.assign({}, existingDocs, d.documents));
+  }
+  const now = new Date().toISOString();
+  obj.AccreditationStatus = 'Pending';
+  obj.SubmittedOn = now;
+  obj.LastUpdated = now;
+  _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
+  _logRaw(user, 'RESUBMIT', 'VendorAccreditation', obj.VendorID, 'Vendor updated documents after CPD revision request');
   return { success: true };
 }
 
@@ -552,7 +711,7 @@ function _publicBidView(b) {
     bidId: b.BidID, referenceNo: b.ReferenceNo, title: b.Title, description: b.Description, category: b.Category,
     department: b.Department, estimatedBudget: b.EstimatedBudget, submissionDeadline: b.SubmissionDeadline,
     status: b.Status, outcome: b.Outcome, publishedOn: b.PublishedOn, closedOn: b.ClosedOn,
-    documents: _safeParseJSON(b.Documents, []),
+    documents: _safeParseJSON(b.Documents, {}),
   };
 }
 
@@ -576,7 +735,7 @@ function createBid(token, d) {
     Department: (d.department || user.department || '').trim(),
     ProponentEmail: user.email,
     EstimatedBudget: Number(d.estimatedBudget) || 0,
-    Documents: JSON.stringify(d.documents || []),
+    Documents: JSON.stringify(d.documents || {}),
     SubmissionDeadline: d.submissionDeadline,
     Status: 'Draft',
     SubmittedOn: '', ApprovedBy: '', ApprovedOn: '', PublishedOn: '', ClosedOn: '', Outcome: '', ReviewNotes: '',
@@ -615,6 +774,9 @@ function submitBidForApproval(token, bidId) {
   const { sheet, rowIndex, obj } = found;
   if (obj.CreatedBy !== user.email && !isCPD(user)) throw new Error('Not authorized.');
   if (obj.Status !== 'Draft') throw new Error('Only draft bid opportunities can be submitted for approval.');
+  const docs = _safeParseJSON(obj.Documents, {});
+  const missing = BID_DOCUMENT_TYPES.filter(t => t.required && !(docs[t.key] && docs[t.key].url)).map(t => t.label);
+  if (missing.length) throw new Error('Please upload the following required documents before submitting: ' + missing.join(', ') + '.');
   obj.Status = 'PendingApproval';
   obj.SubmittedOn = new Date().toISOString();
   obj.LastModified = obj.SubmittedOn;
@@ -733,7 +895,7 @@ function getMyBids(token, statusFilter) {
   if (!isCPD(user)) bids = bids.filter(b => b.CreatedBy === user.email);
   if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
   bids.sort((a, b) => new Date(b.CreatedOn) - new Date(a.CreatedOn));
-  return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, []) })) };
+  return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}) })) };
 }
 
 function getDashboardStats(token) {

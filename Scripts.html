@@ -3,8 +3,11 @@
 let SESSION = { token: null, user: null };
 let CATEGORIES = [];
 let DOCUMENT_TYPES = [];
+let BID_DOCUMENT_TYPES = [];
 let APPLY_DOCS = {};
-let EDITOR_DOCS = [];
+let APPLY_TOKEN = null;
+let EDITOR_DOCS = {};
+let REVISION_DOCS = {};
 let CURRENT_BID_ID = null;
 
 // ── GOOGLE.SCRIPT.RUN PROMISE WRAPPER ───────────────────────────
@@ -73,6 +76,9 @@ async function init() {
   } catch (e) { console.error(e); }
   try {
     DOCUMENT_TYPES = await gsRun('getDocumentTypes');
+  } catch (e) { console.error(e); }
+  try {
+    BID_DOCUMENT_TYPES = await gsRun('getBidDocumentTypes');
   } catch (e) { console.error(e); }
 
   const savedToken = sessionStorage.getItem('bh_token');
@@ -258,10 +264,7 @@ function renderBidDetail(bid, inquiries) {
     </div>
     <div class="hint">Published: ${fmtDate(bid.publishedOn)}${bid.closedOn ? ' · Closed: ' + fmtDate(bid.closedOn) : ''}</div>`;
 
-  if (bid.documents && bid.documents.length) {
-    html += `<h4 style="margin-top:16px;">Documents</h4><ul class="file-list">` +
-      bid.documents.map(d => `<li><a href="${d.url}" target="_blank" rel="noopener">${escapeHtml(d.name)}</a></li>`).join('') + `</ul>`;
-  }
+  html += `<h4 style="margin-top:16px;">Documents</h4>${renderDocList(bid.documents, BID_DOCUMENT_TYPES)}`;
 
   html += `<h4 style="margin-top:16px;">Questions &amp; Answers</h4>`;
   if (inquiries.length) {
@@ -348,13 +351,57 @@ async function completeLogin(token, user) {
 }
 
 // ── VENDOR ACCREDITATION APPLICATION ────────────────────────────
+// Security note: email verification always happens FIRST (Steps 1-2 below)
+// before any document upload or form submission is possible — every upload
+// and the final submit are gated server-side by the appToken issued in
+// applyConfirmEmail, not by a client-supplied email address.
 function openApplyModal() {
   APPLY_DOCS = {};
-  renderApplyDocSlots();
-  document.getElementById('apply-step-otp').classList.add('hidden');
-  document.getElementById('apply-step-form').classList.remove('hidden');
+  APPLY_TOKEN = null;
+  document.getElementById('apply-verify-email').value = '';
+  document.getElementById('apply-verify-otp-code').value = '';
+  document.getElementById('apply-verify-email-error').textContent = '';
+  document.getElementById('apply-verify-otp-error').textContent = '';
   document.getElementById('apply-error').textContent = '';
+  document.getElementById('apply-step-verify-email').classList.remove('hidden');
+  document.getElementById('apply-step-verify-otp').classList.add('hidden');
+  document.getElementById('apply-step-form').classList.add('hidden');
   openModal('modal-apply');
+}
+
+async function applyStartVerification() {
+  const email = document.getElementById('apply-verify-email').value.trim();
+  const errEl = document.getElementById('apply-verify-email-error');
+  errEl.textContent = '';
+  try {
+    const res = await gsRun('startVendorVerification', email);
+    if (!res.success) { errEl.textContent = res.message; return; }
+    document.getElementById('apply-verify-masked-email').textContent = res.maskedEmail;
+    document.getElementById('apply-step-verify-email').classList.add('hidden');
+    document.getElementById('apply-step-verify-otp').classList.remove('hidden');
+  } catch (e) { errEl.textContent = 'Something went wrong. Please try again.'; }
+}
+
+async function applyResendVerification() {
+  const email = document.getElementById('apply-verify-email').value.trim();
+  try { await gsRun('startVendorVerification', email); toast('A new code has been sent.', 'success'); }
+  catch (e) { toast('Failed to resend code.', 'error'); }
+}
+
+async function applyConfirmEmail() {
+  const email = document.getElementById('apply-verify-email').value.trim();
+  const code = document.getElementById('apply-verify-otp-code').value.trim();
+  const errEl = document.getElementById('apply-verify-otp-error');
+  errEl.textContent = '';
+  try {
+    const res = await gsRun('confirmVendorEmail', email, code);
+    if (!res.success) { errEl.textContent = res.message; return; }
+    APPLY_TOKEN = res.appToken;
+    document.getElementById('apply-verified-email-display').textContent = email;
+    document.getElementById('apply-step-verify-otp').classList.add('hidden');
+    document.getElementById('apply-step-form').classList.remove('hidden');
+    renderApplyDocSlots();
+  } catch (e) { errEl.textContent = 'Verification failed. Please try again.'; }
 }
 
 function renderApplyDocSlots() {
@@ -366,21 +413,20 @@ function renderApplyDocSlots() {
         ${t.hint ? `<div class="doc-hint">${escapeHtml(t.hint)}</div>` : ''}
         <div class="doc-status" id="doc-status-${t.key}">No file chosen</div>
       </div>
-      <input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onchange="handleApplyDocFile('${t.key}', this)">
+      <input type="file" accept=".pdf,application/pdf" onchange="handleApplyDocFile('${t.key}', this)">
     </div>`).join('');
 }
 
 async function handleApplyDocFile(docKey, inputEl) {
   const file = inputEl.files[0];
   if (!file) return;
-  const email = document.getElementById('apply-email').value.trim();
-  if (!email) { toast('Please enter your email address before attaching documents.', 'error'); inputEl.value = ''; return; }
+  if (!APPLY_TOKEN) { toast('Please verify your email first.', 'error'); inputEl.value = ''; return; }
   const statusEl = document.getElementById('doc-status-' + docKey);
   statusEl.textContent = 'Uploading ' + file.name + '…';
   statusEl.className = 'doc-status uploading';
   try {
     const base64 = await fileToBase64(file);
-    const info = await gsRun('uploadVendorDocument', email, base64, file.name, file.type);
+    const info = await gsRun('uploadVendorDocument', APPLY_TOKEN, base64, file.name, file.type);
     APPLY_DOCS[docKey] = info;
     statusEl.textContent = info.name + ' — uploaded';
     statusEl.className = 'doc-status uploaded';
@@ -390,11 +436,6 @@ async function handleApplyDocFile(docKey, inputEl) {
     inputEl.value = '';
   }
 }
-
-document.addEventListener('DOMContentLoaded', () => {
-  const editorFilesInput = document.getElementById('editor-files');
-  if (editorFilesInput) editorFilesInput.addEventListener('change', handleEditorFiles);
-});
 
 async function submitApplication() {
   const errEl = document.getElementById('apply-error');
@@ -407,37 +448,15 @@ async function submitApplication() {
     dtisecReg: document.getElementById('apply-dtisecReg').value.trim(),
     contactPerson: document.getElementById('apply-contactPerson').value.trim(),
     contactNumber: document.getElementById('apply-contactNumber').value.trim(),
-    email: document.getElementById('apply-email').value.trim(),
     address: document.getElementById('apply-address').value.trim(),
     documents: APPLY_DOCS,
   };
   try {
-    const res = await gsRun('submitAccreditationApplication', d);
-    if (!res.success) { errEl.textContent = res.message; return; }
-    document.getElementById('apply-masked-email').textContent = res.maskedEmail;
-    document.getElementById('apply-step-form').classList.add('hidden');
-    document.getElementById('apply-step-otp').classList.remove('hidden');
-  } catch (e) { errEl.textContent = 'Something went wrong. Please try again.'; }
-}
-
-async function applyResendOtp() {
-  const email = document.getElementById('apply-email').value.trim();
-  try { await gsRun('sendOTP', email); toast('A new code has been sent.', 'success'); }
-  catch (e) { toast('Failed to resend code.', 'error'); }
-}
-
-async function applyVerifyOtp() {
-  const email = document.getElementById('apply-email').value.trim();
-  const code = document.getElementById('apply-otp-code').value.trim();
-  const errEl = document.getElementById('apply-otp-error');
-  errEl.textContent = '';
-  try {
-    const res = await gsRun('verifyOTP', email, code);
-    if (!res.success) { errEl.textContent = res.message; return; }
+    const res = await gsRun('submitAccreditationApplication', APPLY_TOKEN, d);
     completeLogin(res.token, res.user);
     closeModal('modal-apply');
     toast('Application submitted. The CPD will review it shortly.', 'success');
-  } catch (e) { errEl.textContent = 'Verification failed. Please try again.'; }
+  } catch (e) { errEl.textContent = e.message || 'Failed to submit application.'; }
 }
 
 // ── VENDOR PORTAL ────────────────────────────────────────────
@@ -453,9 +472,10 @@ async function loadVendorStatus() {
 function renderVendorStatusPanel(p) {
   const el = document.getElementById('vendor-panel-v-status');
   if (!p) { el.innerHTML = '<div class="empty-state">No accreditation record found.</div>'; return; }
-  el.innerHTML = `
+  const statusLabel = p.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : p.AccreditationStatus;
+  let html = `
     <div class="card">
-      <span class="stamp ${stampClass(p.AccreditationStatus)}">${escapeHtml(p.AccreditationStatus)}</span>
+      <span class="stamp ${stampClass(p.AccreditationStatus)}">${escapeHtml(statusLabel)}</span>
       ${p.AccreditationNo ? `<div class="control-no" style="margin-top:8px;">${escapeHtml(p.AccreditationNo)}</div>` : ''}
       <h3 style="margin-top:8px;">${escapeHtml(p.CompanyName)}</h3>
       <p class="hint">${escapeHtml(p.ContactPerson)} · ${escapeHtml(p.ContactNumber)} · ${escapeHtml(p.Email)}</p>
@@ -464,18 +484,77 @@ function renderVendorStatusPanel(p) {
       ${p.ReviewNotes ? `<p><b>Notes:</b> ${escapeHtml(p.ReviewNotes)}</p>` : ''}
       ${p.ExpiryDate ? `<p class="hint">Valid until: ${fmtDate(p.ExpiryDate)}</p>` : ''}
       <h4 style="margin-top:12px;">Submitted Documents</h4>
-      ${renderDocList(p.documents)}
+      ${renderDocList(p.documents, DOCUMENT_TYPES)}
     </div>`;
+
+  if (p.AccreditationStatus === 'ChangesRequested') {
+    REVISION_DOCS = Object.assign({}, p.documents || {});
+    html += `
+      <div class="card">
+        <h3>Update Your Documents</h3>
+        <p class="hint">Replace any PDF below that needs correcting, then resubmit for another review.</p>
+        <div id="revision-doc-slots"></div>
+        <button class="btn btn-primary" onclick="submitRevision()">Resubmit for Review</button>
+        <div id="revision-error" class="error-text"></div>
+      </div>`;
+  }
+  el.innerHTML = html;
+  if (p.AccreditationStatus === 'ChangesRequested') renderRevisionDocSlots();
 }
 
-/** Renders the checklist of uploaded accreditation documents by type, using DOCUMENT_TYPES for labels. */
-function renderDocList(docsObj) {
+/** Renders the checklist of uploaded documents by type. Pass DOCUMENT_TYPES (vendor accreditation) or BID_DOCUMENT_TYPES (bid opportunities) for labels. */
+function renderDocList(docsObj, types) {
+  types = types || DOCUMENT_TYPES;
   if (!docsObj) return '<p class="hint">No documents on file.</p>';
-  const items = DOCUMENT_TYPES.filter(t => docsObj[t.key] && docsObj[t.key].url);
+  const items = types.filter(t => docsObj[t.key] && docsObj[t.key].url);
   if (!items.length) return '<p class="hint">No documents on file.</p>';
   return `<ul class="file-list">` + items.map(t =>
     `<li><a href="${docsObj[t.key].url}" target="_blank" rel="noopener">${escapeHtml(t.label)}</a></li>`
   ).join('') + `</ul>`;
+}
+
+function renderRevisionDocSlots() {
+  const container = document.getElementById('revision-doc-slots');
+  container.innerHTML = DOCUMENT_TYPES.map(t => `
+    <div class="doc-slot" id="rev-doc-slot-${t.key}">
+      <div class="doc-info">
+        <div class="doc-label">${escapeHtml(t.label)}${t.required ? ' <span class="req">*</span>' : ''}</div>
+        ${t.hint ? `<div class="doc-hint">${escapeHtml(t.hint)}</div>` : ''}
+        <div class="doc-status ${REVISION_DOCS[t.key] && REVISION_DOCS[t.key].url ? 'uploaded' : ''}" id="rev-doc-status-${t.key}">
+          ${REVISION_DOCS[t.key] && REVISION_DOCS[t.key].url ? escapeHtml(REVISION_DOCS[t.key].name) + ' — on file' : 'No file chosen'}
+        </div>
+      </div>
+      <input type="file" accept=".pdf,application/pdf" onchange="handleRevisionDocFile('${t.key}', this)">
+    </div>`).join('');
+}
+
+async function handleRevisionDocFile(docKey, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('rev-doc-status-' + docKey);
+  statusEl.textContent = 'Uploading ' + file.name + '…';
+  statusEl.className = 'doc-status uploading';
+  try {
+    const base64 = await fileToBase64(file);
+    const info = await gsRun('uploadVendorDocumentAuthenticated', SESSION.token, base64, file.name, file.type);
+    REVISION_DOCS[docKey] = info;
+    statusEl.textContent = info.name + ' — uploaded';
+    statusEl.className = 'doc-status uploaded';
+  } catch (err) {
+    statusEl.textContent = file.name + ' — failed: ' + (err.message || String(err));
+    statusEl.className = 'doc-status failed';
+    inputEl.value = '';
+  }
+}
+
+async function submitRevision() {
+  const errEl = document.getElementById('revision-error');
+  errEl.textContent = '';
+  try {
+    await gsRun('updateVendorDocuments', SESSION.token, { documents: REVISION_DOCS });
+    toast('Documents resubmitted for CPD review.', 'success');
+    loadVendorStatus();
+  } catch (e) { errEl.textContent = e.message || 'Failed to resubmit.'; }
 }
 
 async function loadVendorBoard() {
@@ -604,8 +683,7 @@ async function loadApprovals() {
 }
 
 function openBidEditor(bidId) {
-  EDITOR_DOCS = [];
-  document.getElementById('editor-file-list').innerHTML = '';
+  EDITOR_DOCS = {};
   document.getElementById('bid-editor-error').textContent = '';
   document.getElementById('editor-bid-id').value = bidId || '';
   document.getElementById('bid-editor-title').textContent = bidId ? 'Edit Bid Opportunity' : 'New Bid Opportunity';
@@ -619,37 +697,49 @@ function openBidEditor(bidId) {
       document.getElementById('editor-budget').value = b.EstimatedBudget || '';
       document.getElementById('editor-deadline').value = (b.SubmissionDeadline || '').slice(0, 16);
       document.getElementById('editor-description').value = b.Description || '';
-      EDITOR_DOCS = b.documents || [];
-      renderEditorFileList();
+      EDITOR_DOCS = b.documents || {};
+      renderEditorDocSlots();
     });
   } else {
     ['editor-title', 'editor-category', 'editor-department', 'editor-budget', 'editor-deadline', 'editor-description']
       .forEach(id => document.getElementById(id).value = '');
+    renderEditorDocSlots();
   }
   openModal('modal-bid-editor');
 }
 
-function renderEditorFileList() {
-  document.getElementById('editor-file-list').innerHTML = EDITOR_DOCS
-    .map(d => `<li><span>${escapeHtml(d.name)}</span> <span class="hint">uploaded</span></li>`).join('');
+function renderEditorDocSlots() {
+  const container = document.getElementById('editor-doc-slots');
+  container.innerHTML = BID_DOCUMENT_TYPES.map(t => `
+    <div class="doc-slot" id="editor-doc-slot-${t.key}">
+      <div class="doc-info">
+        <div class="doc-label">${escapeHtml(t.label)}${t.required ? ' <span class="req">*</span>' : ''}</div>
+        ${t.hint ? `<div class="doc-hint">${escapeHtml(t.hint)}</div>` : ''}
+        <div class="doc-status ${EDITOR_DOCS[t.key] && EDITOR_DOCS[t.key].url ? 'uploaded' : ''}" id="editor-doc-status-${t.key}">
+          ${EDITOR_DOCS[t.key] && EDITOR_DOCS[t.key].url ? escapeHtml(EDITOR_DOCS[t.key].name) + ' — uploaded' : 'No file chosen'}
+        </div>
+      </div>
+      <input type="file" accept=".pdf,application/pdf" onchange="handleEditorDocFile('${t.key}', this)">
+    </div>`).join('');
 }
 
-async function handleEditorFiles(e) {
-  const listEl = document.getElementById('editor-file-list');
-  for (const file of e.target.files) {
-    const li = document.createElement('li');
-    li.textContent = 'Uploading ' + file.name + '…';
-    listEl.appendChild(li);
-    try {
-      const base64 = await fileToBase64(file);
-      const info = await gsRun('uploadBidDocument', SESSION.token, base64, file.name, file.type);
-      EDITOR_DOCS.push(info);
-      li.innerHTML = `<span>${escapeHtml(info.name)}</span> <span class="hint">uploaded</span>`;
-    } catch (err) {
-      li.innerHTML = `<span class="error-text">${escapeHtml(file.name)} — failed: ${escapeHtml(err.message || String(err))}</span>`;
-    }
+async function handleEditorDocFile(docKey, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('editor-doc-status-' + docKey);
+  statusEl.textContent = 'Uploading ' + file.name + '…';
+  statusEl.className = 'doc-status uploading';
+  try {
+    const base64 = await fileToBase64(file);
+    const info = await gsRun('uploadBidDocument', SESSION.token, base64, file.name, file.type);
+    EDITOR_DOCS[docKey] = info;
+    statusEl.textContent = info.name + ' — uploaded';
+    statusEl.className = 'doc-status uploaded';
+  } catch (err) {
+    statusEl.textContent = file.name + ' — failed: ' + (err.message || String(err));
+    statusEl.className = 'doc-status failed';
+    inputEl.value = '';
   }
-  e.target.value = '';
 }
 
 async function saveBidEditor(submitAfter) {
@@ -689,26 +779,41 @@ async function loadVendorApplications() {
         <td class="control-no">${escapeHtml(v.AccreditationNo || '—')}</td>
         <td>${escapeHtml(v.CompanyName)}</td>
         <td>${escapeHtml(v.ContactPerson)}<br><span class="hint">${escapeHtml(v.Email)}</span></td>
-        <td>${renderDocList(v.documents)}</td>
-        <td><span class="stamp ${stampClass(v.AccreditationStatus)}">${escapeHtml(v.AccreditationStatus)}</span></td>
+        <td>${renderDocList(v.documents, DOCUMENT_TYPES)}</td>
+        <td><span class="stamp ${stampClass(v.AccreditationStatus)}">${escapeHtml(v.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : v.AccreditationStatus)}</span></td>
         <td>${fmtDate(v.SubmittedOn)}</td>
         <td>${v.AccreditationStatus === 'Pending'
           ? `<button class="btn btn-sm btn-primary" onclick="reviewVendorAction('${v.VendorID}','Approved')">Approve</button>
+             <button class="btn btn-sm btn-outline" onclick="reviewVendorAction('${v.VendorID}','ChangesRequested')">Request Changes</button>
              <button class="btn btn-sm btn-danger" onclick="reviewVendorAction('${v.VendorID}','Rejected')">Reject</button>`
-          : '<span class="hint">—</span>'}
+          : (v.AccreditationStatus === 'ChangesRequested'
+            ? `<button class="btn btn-sm btn-outline" onclick="resendReminderAction('${v.VendorID}')">Resend Reminder</button>`
+            : '<span class="hint">—</span>')}
         </td>
       </tr>`).join('') + `</tbody></table>`;
   } catch (e) { el.innerHTML = '<p class="error-text">Failed to load vendor applications.</p>'; }
 }
 
 async function reviewVendorAction(vendorId, decision) {
-  const notes = window.prompt(decision === 'Approved' ? 'Approval notes (optional):' : 'Reason for rejection:') || '';
-  if (decision === 'Rejected' && !notes) { toast('A rejection reason is required.', 'error'); return; }
+  let notes = '';
+  if (decision === 'Approved') {
+    notes = window.prompt('Approval notes (optional):') || '';
+  } else {
+    const label = decision === 'Rejected' ? 'Reason for rejection:' : 'Describe what needs to be corrected:';
+    notes = window.prompt(label) || '';
+    if (!notes.trim()) { toast('Please provide a reason/description.', 'error'); return; }
+  }
   try {
     await gsRun('reviewAccreditation', SESSION.token, vendorId, decision, notes, '');
-    toast('Vendor application ' + decision.toLowerCase() + '.', 'success');
+    const verbMap = { Approved: 'approved', Rejected: 'rejected', ChangesRequested: 'sent back for changes' };
+    toast('Vendor application ' + verbMap[decision] + '.', 'success');
     loadVendorApplications();
   } catch (e) { toast(e.message || 'Failed to review application.', 'error'); }
+}
+
+async function resendReminderAction(vendorId) {
+  try { await gsRun('resendVendorReminder', SESSION.token, vendorId); toast('Reminder email resent.', 'success'); }
+  catch (e) { toast(e.message || 'Failed to resend reminder.', 'error'); }
 }
 
 // ── STAFF: INQUIRIES REVIEW ──────────────────────────────────────

@@ -55,10 +55,18 @@ Draft → Submit for Approval → Approved → Published → Closed
 ## Reviewing vendor accreditation
 
 **Vendor Accreditation** tab lists applications (filterable by status). Each row shows the
-applicant's uploaded documents as clickable links — review them before deciding. **Approve**
-assigns a permanent accreditation number (e.g. `ACC-2026-0001`) and a 1-year validity date.
-**Reject** requires a reason, which the vendor sees on their status page and can use to correct
-and re-apply.
+applicant's uploaded documents (PDF only) as clickable links — review them before deciding on a
+Pending application:
+
+- **Approve** — assigns a permanent accreditation number (e.g. `ACC-2026-0001`) and a 1-year
+  validity date.
+- **Request Changes** — for incomplete or incorrect submissions. Requires a note describing what's
+  wrong; the vendor is emailed automatically and sees the same note on their status page, along
+  with a form to replace just the affected documents — no full re-application needed. Resubmitting
+  sends it back to Pending for another look. Use **Resend Reminder** on a Changes Requested row if
+  the vendor hasn't acted yet.
+- **Reject** — a hard stop. Requires a reason, which the vendor sees on their status page; they'd
+  need to start a fresh application (with a new email verification) to try again.
 
 ## Responding to inquiries
 
