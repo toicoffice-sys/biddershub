@@ -463,11 +463,13 @@ const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 // for this unverified internal script. The folder can be freely renamed/moved/shared
 // afterward in Drive; that doesn't require any re-authorization.
 //
-// IMPORTANT: drive.file scope covers "access a specific resource this app already
-// created," identified by ID — it does NOT cover searching/listing across Drive
-// (DriveApp.getFoldersByName is a search and fails under this scope even though the
-// result would only ever be an app-owned folder). So the folder is created exactly
-// once and its ID is remembered in ScriptProperties, never re-discovered by name.
+// IMPORTANT: this uses the Advanced Drive Service (Drive API v3, "Drive" — see
+// appsscript.json enabledAdvancedServices), NOT the classic DriveApp service.
+// DriveApp.createFolder()/createFile() do not correctly recognize drive.file scope
+// as sufficient in this environment (confirmed by testing — they demand full
+// 'drive' scope even for app-created resources, which is a known DriveApp
+// limitation). Drive.Files.create() is the scope-correct, Google-documented way
+// to create/own resources under drive.file.
 const UPLOAD_FOLDER_NAME = 'BiddersHub Documents';
 const UPLOAD_FOLDER_ID_PROP = 'uploadFolderId';
 
@@ -475,12 +477,12 @@ function _getOrCreateUploadFolder() {
   const props = PropertiesService.getScriptProperties();
   const storedId = props.getProperty(UPLOAD_FOLDER_ID_PROP);
   if (storedId) {
-    try { return DriveApp.getFolderById(storedId); }
+    try { Drive.Files.get(storedId, { fields: 'id' }); return storedId; }
     catch (e) { /* folder became inaccessible — fall through and create a new one */ }
   }
-  const folder = DriveApp.createFolder(UPLOAD_FOLDER_NAME);
-  props.setProperty(UPLOAD_FOLDER_ID_PROP, folder.getId());
-  return folder;
+  const folder = Drive.Files.create({ name: UPLOAD_FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' });
+  props.setProperty(UPLOAD_FOLDER_ID_PROP, folder.id);
+  return folder.id;
 }
 
 function _uploadFile(base64Data, filename, mimeType) {
@@ -488,10 +490,10 @@ function _uploadFile(base64Data, filename, mimeType) {
   const bytes = Utilities.base64Decode(base64Data);
   if (bytes.length > MAX_UPLOAD_BYTES) throw new Error('File exceeds the 10MB limit.');
   const blob = Utilities.newBlob(bytes, mimeType, filename);
-  const folder = _getOrCreateUploadFolder();
-  const file = folder.createFile(blob);
-  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  return { name: filename, url: file.getUrl(), fileId: file.getId() };
+  const folderId = _getOrCreateUploadFolder();
+  const file = Drive.Files.create({ name: filename, parents: [folderId] }, blob);
+  Drive.Permissions.create({ role: 'reader', type: 'anyone' }, file.id);
+  return { name: filename, url: 'https://drive.google.com/file/d/' + file.id + '/view', fileId: file.id };
 }
 
 /**
@@ -1096,8 +1098,8 @@ function getBootData(token) {
  * never call DriveApp, so running them alone never triggers this consent.
  */
 function authorizeDriveAccess() {
-  const folder = _getOrCreateUploadFolder();
-  console.log('✅ Drive access authorized. Upload folder: "' + folder.getName() + '" — ' + folder.getUrl());
+  const folderId = _getOrCreateUploadFolder();
+  console.log('✅ Drive access authorized. Upload folder ID: ' + folderId + ' — https://drive.google.com/drive/folders/' + folderId);
 }
 
 /**
