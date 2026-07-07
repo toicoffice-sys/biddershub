@@ -75,7 +75,22 @@ Under **Browse & Inquire**, search and filter bid opportunities the same way as 
 Open any **Published** bid and use **Ask a question** to submit an inquiry directly to the CPD.
 Questions can only be submitted for bids that are currently open (Published).
 
-## 6. My Inquiries
+## 6. Submitting a bid
+
+**You must be accredited (status: Approved) before you can submit a bid.** Open any Published bid
+and scroll to **Submit Your Bid**:
+
+- If you're not yet accredited (Pending, Changes Requested, or Rejected), you'll see your current
+  status instead of an upload form — finish accreditation first.
+- Once accredited, upload:
+  - **Technical Proposal** (required PDF)
+  - **Financial Proposal / Price Quotation** (required PDF)
+  - **Other Supporting Documents** (optional)
+- Submit before the deadline shown on the bid. You can reopen the bid and **replace any document
+  and resubmit** as many times as you like up until the deadline — only your latest submission
+  counts.
+
+## 7. My Inquiries
 
 Track every question you've submitted and the CPD's response here. Once answered, your Q&A also
 appears publicly on that bid's detail page (without your name) so other vendors benefit from the

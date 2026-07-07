@@ -4,10 +4,12 @@ let SESSION = { token: null, user: null };
 let CATEGORIES = [];
 let DOCUMENT_TYPES = [];
 let BID_DOCUMENT_TYPES = [];
+let BID_SUBMISSION_DOCUMENT_TYPES = [];
 let APPLY_DOCS = {};
 let APPLY_TOKEN = null;
 let EDITOR_DOCS = {};
 let REVISION_DOCS = {};
+let SUBMISSION_DOCS = {};
 let CURRENT_BID_ID = null;
 
 // ── GOOGLE.SCRIPT.RUN PROMISE WRAPPER ───────────────────────────
@@ -79,6 +81,9 @@ async function init() {
   } catch (e) { console.error(e); }
   try {
     BID_DOCUMENT_TYPES = await gsRun('getBidDocumentTypes');
+  } catch (e) { console.error(e); }
+  try {
+    BID_SUBMISSION_DOCUMENT_TYPES = await gsRun('getBidSubmissionDocumentTypes');
   } catch (e) { console.error(e); }
 
   const savedToken = sessionStorage.getItem('bh_token');
@@ -185,6 +190,8 @@ function configureStaffTabsForRole(role) {
     if (['s-approvals', 's-vendors', 's-inquiries', 's-dashboard'].includes(tab)) btn.style.display = cpd ? '' : 'none';
     if (['s-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
   });
+  const newBidBtn = document.getElementById('new-bid-btn');
+  if (newBidBtn) newBidBtn.style.display = cpd ? '' : 'none';
   switchTab('staff', 's-mybids');
 }
 
@@ -246,12 +253,21 @@ async function openBidDetail(bidId) {
   try {
     const res = await gsRun('getBidById', bidId);
     if (!res.success) { toast(res.message, 'error'); return; }
-    renderBidDetail(res.bid, res.inquiries);
+    let vendorProfile = null;
+    let mySubmission = null;
+    if (SESSION.token && SESSION.user.role === 'vendor') {
+      try {
+        vendorProfile = (await gsRun('getMyVendorProfile', SESSION.token)).profile;
+        const subs = (await gsRun('getMyBidSubmissions', SESSION.token)).submissions;
+        mySubmission = subs.find(s => s.BidID === bidId) || null;
+      } catch (e) { /* non-fatal — submission section just won't show */ }
+    }
+    renderBidDetail(res.bid, res.inquiries, vendorProfile, mySubmission);
     openModal('modal-bid-detail');
   } catch (e) { toast('Failed to load bid opportunity.', 'error'); }
 }
 
-function renderBidDetail(bid, inquiries) {
+function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
   let html = `
     <span class="stamp ${stampClass(bid.status)}">${escapeHtml(bid.status)}${bid.outcome ? ' · ' + escapeHtml(bid.outcome) : ''}</span>
     <div class="control-no" style="margin-top:8px;">${escapeHtml(bid.referenceNo || '')}</div>
@@ -289,7 +305,75 @@ function renderBidDetail(bid, inquiries) {
   } else if (!SESSION.token && bid.status === 'Published') {
     html += `<p class="hint">Sign in as an accredited vendor to submit an inquiry.</p>`;
   }
+
+  let showSubmissionSlots = false;
+  if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
+    html += `<h4 style="margin-top:16px;">Submit Your Bid</h4>`;
+    const isAccredited = vendorProfile && vendorProfile.AccreditationStatus === 'Approved';
+    if (!isAccredited) {
+      const statusLabel = vendorProfile ? (vendorProfile.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : vendorProfile.AccreditationStatus) : 'Not on file';
+      html += `<p class="hint">Only accredited vendors can submit a bid. Your current accreditation status:
+        <span class="stamp ${stampClass(vendorProfile ? vendorProfile.AccreditationStatus : 'Pending')}">${escapeHtml(statusLabel)}</span></p>`;
+    } else {
+      SUBMISSION_DOCS = mySubmission ? Object.assign({}, mySubmission.documents) : {};
+      html += mySubmission
+        ? `<p class="hint">You submitted this bid on ${fmtDate(mySubmission.SubmittedOn)}${mySubmission.LastUpdated !== mySubmission.SubmittedOn ? ' · last updated ' + fmtDate(mySubmission.LastUpdated) : ''}. Replace any document below and resubmit before the deadline if needed.</p>`
+        : `<p class="hint">Upload your proposal documents, then submit before the deadline.</p>`;
+      html += `<div id="submission-doc-slots"></div>
+        <button class="btn btn-primary" onclick="submitBidProposalAction('${bid.bidId}')">${mySubmission ? 'Resubmit Bid' : 'Submit Bid'}</button>
+        <div id="submission-error" class="error-text"></div>`;
+      showSubmissionSlots = true;
+    }
+  } else if (!SESSION.token && bid.status === 'Published') {
+    html += `<h4 style="margin-top:16px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+  }
+
   document.getElementById('bid-detail-content').innerHTML = html;
+  if (showSubmissionSlots) renderSubmissionDocSlots();
+}
+
+function renderSubmissionDocSlots() {
+  const container = document.getElementById('submission-doc-slots');
+  container.innerHTML = BID_SUBMISSION_DOCUMENT_TYPES.map(t => `
+    <div class="doc-slot" id="submission-doc-slot-${t.key}">
+      <div class="doc-info">
+        <div class="doc-label">${escapeHtml(t.label)}${t.required ? ' <span class="req">*</span>' : ''}</div>
+        ${t.hint ? `<div class="doc-hint">${escapeHtml(t.hint)}</div>` : ''}
+        <div class="doc-status ${SUBMISSION_DOCS[t.key] && SUBMISSION_DOCS[t.key].url ? 'uploaded' : ''}" id="submission-doc-status-${t.key}">
+          ${SUBMISSION_DOCS[t.key] && SUBMISSION_DOCS[t.key].url ? escapeHtml(SUBMISSION_DOCS[t.key].name) + ' — on file' : 'No file chosen'}
+        </div>
+      </div>
+      <input type="file" accept=".pdf,application/pdf" onchange="handleSubmissionDocFile('${t.key}', this)">
+    </div>`).join('');
+}
+
+async function handleSubmissionDocFile(docKey, inputEl) {
+  const file = inputEl.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('submission-doc-status-' + docKey);
+  statusEl.textContent = 'Uploading ' + file.name + '…';
+  statusEl.className = 'doc-status uploading';
+  try {
+    const base64 = await fileToBase64(file);
+    const info = await gsRun('uploadBidSubmissionDocument', SESSION.token, base64, file.name, file.type);
+    SUBMISSION_DOCS[docKey] = info;
+    statusEl.textContent = info.name + ' — uploaded';
+    statusEl.className = 'doc-status uploaded';
+  } catch (err) {
+    statusEl.textContent = file.name + ' — failed: ' + (err.message || String(err));
+    statusEl.className = 'doc-status failed';
+    inputEl.value = '';
+  }
+}
+
+async function submitBidProposalAction(bidId) {
+  const errEl = document.getElementById('submission-error');
+  errEl.textContent = '';
+  try {
+    await gsRun('submitBidProposal', SESSION.token, bidId, SUBMISSION_DOCS);
+    toast('Your bid has been submitted.', 'success');
+    closeModal('modal-bid-detail');
+  } catch (e) { errEl.textContent = e.message || 'Failed to submit your bid.'; }
 }
 
 // ── LOGIN (EMAIL + OTP) ────────────────────────────────────────
@@ -609,10 +693,9 @@ async function loadMyBids() {
 }
 
 function bidActionsHtml(b) {
-  const isOwner = b.CreatedBy === SESSION.user.email;
   const cpd = SESSION.user.role === 'cpd_admin' || SESSION.user.role === 'cpd_officer';
   const btns = [];
-  if (b.Status === 'Draft' && (isOwner || cpd)) {
+  if (b.Status === 'Draft' && cpd) {
     btns.push(`<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`);
     btns.push(`<button class="btn btn-sm btn-primary" onclick="submitForApproval('${b.BidID}')">Submit</button>`);
   }
@@ -626,7 +709,26 @@ function bidActionsHtml(b) {
   if (b.Status === 'Published' && cpd) {
     btns.push(`<button class="btn btn-sm btn-outline" onclick="closeBidAction('${b.BidID}')">Close</button>`);
   }
+  if (['Published', 'Closed'].includes(b.Status) && cpd) {
+    btns.push(`<button class="btn btn-sm btn-outline" onclick="viewSubmissions('${b.BidID}')">View Submissions</button>`);
+  }
   return btns.join(' ') || '<span class="hint">—</span>';
+}
+
+async function viewSubmissions(bidId) {
+  const el = document.getElementById('submissions-list');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  openModal('modal-submissions');
+  try {
+    const res = await gsRun('getBidSubmissionsForBid', SESSION.token, bidId);
+    if (!res.submissions.length) { el.innerHTML = '<div class="empty-state">No bids submitted yet for this opportunity.</div>'; return; }
+    el.innerHTML = `<table><thead><tr><th>Company</th><th>Submitted</th><th>Documents</th></tr></thead><tbody>` +
+      res.submissions.map(s => `<tr>
+        <td>${escapeHtml(s.CompanyName)}<br><span class="hint">${escapeHtml(s.VendorEmail)}</span></td>
+        <td>${fmtDate(s.SubmittedOn)}</td>
+        <td>${renderDocList(s.documents, BID_SUBMISSION_DOCUMENT_TYPES)}</td>
+      </tr>`).join('') + `</tbody></table>`;
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load submissions.</p>'; }
 }
 
 function renderMyBidsTable(bids) {

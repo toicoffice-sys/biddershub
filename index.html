@@ -121,7 +121,7 @@
 
       <div id="staff-panel-s-mybids" class="tab-panel">
         <div class="toolbar" style="justify-content:flex-end;">
-          <button class="btn btn-primary" onclick="openBidEditor()">+ New Bid Opportunity</button>
+          <button class="btn btn-primary" id="new-bid-btn" onclick="openBidEditor()">+ New Bid Opportunity</button>
         </div>
         <div id="staff-mybids-table"></div>
       </div>
@@ -219,6 +219,16 @@
         </div>
 
         <div class="card">
+          <h3>6. Submitting a bid</h3>
+          <p><b>You must be accredited (status: Approved) before you can submit a bid.</b> Open any
+             Published bid and scroll to <b>Submit Your Bid</b>. If you're not yet accredited, you'll see
+             your current status instead of an upload form. Once accredited, upload a
+             <b>Technical Proposal</b> and <b>Financial Proposal / Price Quotation</b> (both required PDFs),
+             plus any <b>Other Supporting Documents</b> (optional). You can replace a document and
+             resubmit as many times as you like before the deadline — only your latest submission counts.</p>
+        </div>
+
+        <div class="card">
           <h3>Troubleshooting</h3>
           <ul>
             <li><b>Didn't receive the code?</b> Check spam/junk, then use Resend code (codes expire after 10 minutes; you can request a new one after 60 seconds).</li>
@@ -236,7 +246,7 @@
             <tbody>
               <tr><td>CPD Administrator</td><td>Everything below, plus manage staff user accounts and view the audit log</td></tr>
               <tr><td>CPD Officer</td><td>Create/edit bids, approve, publish, close bids, review vendor accreditation, respond to inquiries, view the KPI dashboard</td></tr>
-              <tr><td>Proponent</td><td>Draft bid opportunities for their own department and submit for CPD approval — cannot approve, publish, or review vendors</td></tr>
+              <tr><td>Proponent</td><td>Legacy role — currently no bid-related permissions. Bid opportunities are posted by CPD only; requesting departments coordinate with CPD directly rather than drafting bids themselves.</td></tr>
             </tbody>
           </table>
           <p class="hint" style="margin-top:8px;">Roles live in the <b>Users</b> sheet. No passwords — anyone
@@ -247,12 +257,20 @@
           <h3>Bid opportunity workflow</h3>
           <p><span class="stamp stamp-grey">Draft</span> → <span class="stamp stamp-blue">Pending Approval</span> → <span class="stamp stamp-green">Approved</span> → <span class="stamp stamp-green">Published</span> → <span class="stamp stamp-grey">Closed</span></p>
           <ol>
-            <li><b>Draft</b> — Proponent or CPD staff creates a bid opportunity (title, category, department, budget, deadline, description, documents). Save as draft or submit immediately.</li>
-            <li><b>Submit for Approval</b> — moves the bid to the Approvals tab (CPD Officer/Admin only).</li>
+            <li><b>Draft</b> — CPD staff creates a bid opportunity (title, category, department, budget, deadline, description, and bid document templates — RFQ/ITB and Terms of Reference are required). Save as draft or submit immediately.</li>
+            <li><b>Submit for Approval</b> — moves the bid to the Approvals tab. Blocked until required documents are attached.</li>
             <li><b>Approve / Reject</b> — CPD reviews. Approve moves it to Approved; Reject sends it back to Draft with a reason.</li>
-            <li><b>Publish</b> — makes the bid visible on the public bid board and assigns its reference number to the KPI turnaround clock.</li>
+            <li><b>Publish</b> — makes the bid visible on the public bid board, open for accredited vendors to submit bids and ask questions, and starts the KPI turnaround clock.</li>
             <li><b>Close</b> — once the deadline passes, close with an outcome: Awarded, Cancelled, or No Award. Closed bids stay visible for transparency and audit.</li>
           </ol>
+        </div>
+
+        <div class="card">
+          <h3>Reviewing bid submissions</h3>
+          <p>Only <b>accredited (Approved)</b> vendors can submit a bid — checked live at submission
+             time, not just at login. On a Published or Closed bid, click <b>View Submissions</b> to see
+             every vendor's Technical Proposal, Financial Proposal, and any other documents they
+             attached, in submission order.</p>
         </div>
 
         <div class="card">
@@ -425,6 +443,15 @@
       <button class="btn btn-outline" onclick="saveBidEditor()">Save Draft</button>
       <button class="btn btn-primary" onclick="saveBidEditor(true)">Save &amp; Submit for Approval</button>
     </div>
+  </div>
+</div>
+
+<!-- ── MODAL: BID SUBMISSIONS (CPD review) ──────────────── -->
+<div id="modal-submissions" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-submissions')">&times;</button>
+    <h3>Bid Submissions</h3>
+    <div id="submissions-list"></div>
   </div>
 </div>
 

@@ -8,11 +8,16 @@ Internal reference for the Central Procurement Department (CPD) staff portal.
 |---|---|
 | **CPD Administrator** | Everything below, plus manage staff user accounts and view the audit log |
 | **CPD Officer** | Create/edit bids, approve, publish, close bids, review vendor accreditation, respond to inquiries, view the KPI dashboard |
-| **Proponent** | Draft bid opportunities for their own department and submit them for CPD approval — cannot approve, publish, or review vendors |
+| **Proponent** | Legacy role, currently no bid-related permissions — see note below |
 
 Roles live in the `Users` sheet (column `Role`: `cpd_admin` / `cpd_officer` / `proponent`). There
 are no passwords — whoever's email is in that sheet with `Status = Active` can sign in with an
 emailed one-time code.
+
+**Bid opportunities are posted by CPD only.** Requesting departments no longer draft their own bid
+opportunities in the system — they coordinate with the CPD directly, and CPD staff post the
+opportunity (including the template documents bidders need). The `proponent` role still exists in
+the `Users` sheet for reference but currently has no actions available in the Bid Opportunities tab.
 
 ## One-time setup (whoever deploys this)
 
@@ -23,8 +28,9 @@ emailed one-time code.
    - `cpd.test@dlsl.edu.ph` — `cpd_officer`
 2. Replace those with real staff emails (or add rows for additional staff) directly in the
    `Users` sheet before going live.
-3. Uploaded documents (vendor accreditation + bid attachments) are stored in the shared Drive
-   folder configured in `Code.js` (`UPLOAD_FOLDER_ID`) — confirm your account has edit access to it.
+3. Uploaded documents (vendor accreditation, bid template documents, and vendor bid submissions)
+   are stored in a Drive folder named "BiddersHub Documents" that the script creates and owns
+   automatically the first time an upload happens — no manual folder setup needed.
 
 ## Signing in
 
@@ -38,19 +44,29 @@ Draft → Submit for Approval → Approved → Published → Closed
   └── Reject ────┘
 ```
 
-1. **Draft** — Proponent or CPD staff creates a bid opportunity (**Bid Opportunities** tab →
-   **+ New Bid Opportunity**): title, category, department, estimated budget, submission
-   deadline, description, and any bid documents (RFQ/ToR, forms). Save as draft or submit
-   immediately.
-2. **Submit for Approval** — moves the bid to the **Approvals** tab (CPD Officer/Admin only).
+1. **Draft** — CPD staff creates a bid opportunity (**Bid Opportunities** tab → **+ New Bid
+   Opportunity**): title, category, department, estimated budget, submission deadline,
+   description, and the bid document templates bidders will need (RFQ/ITB and Terms of Reference
+   are required; BOQ, Bid Form, Eligibility Checklist, Draft Contract, and Plans/Specs are
+   optional). Save as draft or submit immediately.
+2. **Submit for Approval** — moves the bid to the **Approvals** tab. Blocked until the required
+   documents above are attached.
 3. **Approve / Reject** — CPD reviews. Approve moves it to *Approved*, ready to publish. Reject
    sends it back to *Draft* with a reason.
-4. **Publish** — makes the bid visible on the public bid board. This is when the reference number
-   (e.g. `ITB-2026-0001`) starts appearing in KPI turnaround calculations (Approved → Published
-   time).
+4. **Publish** — makes the bid visible on the public bid board and open for accredited vendors to
+   submit bids and ask questions. This is when the reference number (e.g. `ITB-2026-0001`) starts
+   appearing in KPI turnaround calculations (Approved → Published time).
 5. **Close** — once the submission deadline has passed, close the bid with an outcome: *Awarded*,
    *Cancelled*, or *No Award*. Closed bids stay visible on the public board for transparency and
    audit purposes.
+
+## Reviewing bid submissions
+
+Only **accredited (Approved)** vendors can submit a bid on a Published opportunity — the system
+checks their live accreditation status at submission time, not just their login status. On a
+Published or Closed bid, click **View Submissions** (in the Bid Opportunities tab) to see every
+vendor's Technical Proposal, Financial Proposal, and any other supporting documents they attached,
+each as a clickable link, in submission order.
 
 ## Reviewing vendor accreditation
 

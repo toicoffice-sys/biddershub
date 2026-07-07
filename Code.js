@@ -11,19 +11,21 @@
 const SPREADSHEET_ID = '1M4Ns7GIO4veZ4rUgCUygjRBe2n-Wx_CdzZ1vZBsSprM';
 
 const SH = {
-  USERS:     'Users',
-  VENDORS:   'Vendors',
-  BIDS:      'BidOpportunities',
-  INQUIRIES: 'Inquiries',
-  AUDIT:     'AuditLog',
-  CONFIG:    'Config',
+  USERS:       'Users',
+  VENDORS:     'Vendors',
+  BIDS:        'BidOpportunities',
+  INQUIRIES:   'Inquiries',
+  SUBMISSIONS: 'BidSubmissions',
+  AUDIT:       'AuditLog',
+  CONFIG:      'Config',
 };
 
-const USER_HEADERS    = ['UserID','Email','FullName','Role','Department','Status','AddedBy','AddedOn'];
-const VENDOR_HEADERS  = ['VendorID','AccreditationNo','CompanyName','TradeName','BusinessCategory','TINNumber','DTISECReg','ContactPerson','ContactNumber','Email','Address','Documents','AccreditationStatus','SubmittedOn','ReviewedBy','ReviewedOn','ReviewNotes','ExpiryDate','LastUpdated'];
-const BID_HEADERS     = ['BidID','ReferenceNo','Title','Description','Category','Department','ProponentEmail','EstimatedBudget','Documents','SubmissionDeadline','Status','SubmittedOn','ApprovedBy','ApprovedOn','PublishedOn','ClosedOn','Outcome','ReviewNotes','CreatedBy','CreatedOn','LastModified','ViewCount'];
-const INQUIRY_HEADERS = ['InquiryID','BidID','VendorEmail','VendorName','Question','SubmittedOn','Response','RespondedBy','RespondedOn','Status'];
-const AUDIT_HEADERS   = ['LogID','Timestamp','ActorEmail','ActorRole','Action','EntityType','EntityID','Details'];
+const USER_HEADERS       = ['UserID','Email','FullName','Role','Department','Status','AddedBy','AddedOn'];
+const VENDOR_HEADERS     = ['VendorID','AccreditationNo','CompanyName','TradeName','BusinessCategory','TINNumber','DTISECReg','ContactPerson','ContactNumber','Email','Address','Documents','AccreditationStatus','SubmittedOn','ReviewedBy','ReviewedOn','ReviewNotes','ExpiryDate','LastUpdated'];
+const BID_HEADERS        = ['BidID','ReferenceNo','Title','Description','Category','Department','ProponentEmail','EstimatedBudget','Documents','SubmissionDeadline','Status','SubmittedOn','ApprovedBy','ApprovedOn','PublishedOn','ClosedOn','Outcome','ReviewNotes','CreatedBy','CreatedOn','LastModified','ViewCount'];
+const INQUIRY_HEADERS    = ['InquiryID','BidID','VendorEmail','VendorName','Question','SubmittedOn','Response','RespondedBy','RespondedOn','Status'];
+const SUBMISSION_HEADERS = ['SubmissionID','BidID','VendorID','VendorEmail','CompanyName','Documents','SubmittedOn','LastUpdated'];
+const AUDIT_HEADERS      = ['LogID','Timestamp','ActorEmail','ActorRole','Action','EntityType','EntityID','Details'];
 
 const CATEGORIES = [
   'Goods & Supplies', 'Infrastructure & Construction', 'Consulting Services',
@@ -60,6 +62,17 @@ const BID_DOCUMENT_TYPES = [
 ];
 
 function getBidDocumentTypes() { return BID_DOCUMENT_TYPES; }
+
+// What an accredited vendor submits back on a published bid — distinct from
+// BID_DOCUMENT_TYPES above, which are the CPD's posted reference/template
+// documents (RFQ/ITB, ToR, etc.) that vendors download and consult.
+const BID_SUBMISSION_DOCUMENT_TYPES = [
+  { key: 'technicalProposal', label: 'Technical Proposal',                    hint: '', required: true },
+  { key: 'financialProposal', label: 'Financial Proposal / Price Quotation',  hint: '', required: true },
+  { key: 'otherDocuments',    label: 'Other Supporting Documents',            hint: 'Optional additional attachments', required: false },
+];
+
+function getBidSubmissionDocumentTypes() { return BID_SUBMISSION_DOCUMENT_TYPES; }
 
 const SESSION_TTL_MS  = 8 * 60 * 60 * 1000; // 8 hours
 const APP_TOKEN_TTL_MS = 60 * 60 * 1000;    // 1 hour to finish an accreditation application after verifying email
@@ -742,7 +755,7 @@ function _publicBidView(b) {
 
 function createBid(token, d) {
   const user = requireAuth(token);
-  if (!['cpd_admin', 'cpd_officer', 'proponent'].includes(user.role)) throw new Error('Not authorized.');
+  if (!isCPD(user)) throw new Error('Only CPD staff can post a bid opportunity.');
   if (!d.title || !d.title.trim()) throw new Error('Title is required.');
   if (d.title.trim().length > 200) throw new Error('Title is too long.');
   if (!d.category || !CATEGORIES.includes(d.category)) throw new Error('Please select a valid category.');
@@ -776,7 +789,7 @@ function updateBid(token, bidId, d) {
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
-  if (obj.CreatedBy !== user.email && !isCPD(user)) throw new Error('Not authorized to edit this bid opportunity.');
+  if (!isCPD(user)) throw new Error('Only CPD staff can edit a bid opportunity.');
   if (!['Draft', 'PendingApproval'].includes(obj.Status)) throw new Error('This bid opportunity can no longer be edited.');
 
   if (d.title !== undefined) obj.Title = d.title.trim();
@@ -797,7 +810,7 @@ function submitBidForApproval(token, bidId) {
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
-  if (obj.CreatedBy !== user.email && !isCPD(user)) throw new Error('Not authorized.');
+  if (!isCPD(user)) throw new Error('Only CPD staff can submit a bid opportunity for approval.');
   if (obj.Status !== 'Draft') throw new Error('Only draft bid opportunities can be submitted for approval.');
   const docs = _safeParseJSON(obj.Documents, {});
   const missing = BID_DOCUMENT_TYPES.filter(t => t.required && !(docs[t.key] && docs[t.key].url)).map(t => t.label);
@@ -1013,6 +1026,90 @@ function respondToInquiry(token, inquiryId, response) {
   return { success: true };
 }
 
+// ── BID SUBMISSIONS (accredited vendors only) ────────────────────
+function _requireAccreditedVendor(user) {
+  if (user.role !== 'vendor') throw new Error('Vendor authorization required.');
+  // Look up fresh from the sheet rather than trusting the cached session value —
+  // accreditation status can change after the vendor's session was created.
+  const profile = _getVendorProfileByEmail(user.email);
+  if (!profile || profile.AccreditationStatus !== 'Approved') {
+    throw new Error('Only accredited vendors can submit a bid. Your current status is: ' + (profile ? profile.AccreditationStatus : 'not on file') + '.');
+  }
+  return profile;
+}
+
+/** Requires the vendor to be accredited (Approved) before any submission document can be uploaded. */
+function uploadBidSubmissionDocument(token, base64Data, filename, mimeType) {
+  const user = requireAuth(token);
+  _requireAccreditedVendor(user);
+  return _uploadFile(base64Data, filename, mimeType);
+}
+
+/**
+ * submitBidProposal — an accredited vendor submits (or updates, before the
+ * deadline) their bid on a Published opportunity. One row per vendor per bid.
+ */
+function submitBidProposal(token, bidId, documents) {
+  const user = requireAuth(token);
+  const profile = _requireAccreditedVendor(user);
+
+  const bidRow = _getBidRow(bidId);
+  if (!bidRow || bidRow.obj.Status !== 'Published') throw new Error('Bids are only accepted for currently published opportunities.');
+  if (bidRow.obj.SubmissionDeadline && new Date() > new Date(bidRow.obj.SubmissionDeadline)) {
+    throw new Error('The submission deadline for this bid opportunity has passed.');
+  }
+
+  const docs = (documents && typeof documents === 'object') ? documents : {};
+  const missing = BID_SUBMISSION_DOCUMENT_TYPES.filter(t => t.required && !(docs[t.key] && docs[t.key].url)).map(t => t.label);
+  if (missing.length) throw new Error('Please upload the following required documents: ' + missing.join(', ') + '.');
+
+  const sheet = getSheet(SH.SUBMISSIONS);
+  const data = sheet.getDataRange().getValues();
+  const now = new Date().toISOString();
+  let existingRowIndex = -1;
+  if (data.length > 1) {
+    const h = data[0];
+    const iBid = h.indexOf('BidID'), iVendor = h.indexOf('VendorID');
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][iBid] === bidId && data[i][iVendor] === profile.VendorID) { existingRowIndex = i + 1; break; }
+    }
+  }
+
+  const rowObj = {
+    SubmissionID: existingRowIndex === -1 ? _id() : _rowObjectAt(sheet, SUBMISSION_HEADERS, existingRowIndex).SubmissionID,
+    BidID: bidId,
+    VendorID: profile.VendorID,
+    VendorEmail: user.email,
+    CompanyName: profile.CompanyName,
+    Documents: JSON.stringify(docs),
+    SubmittedOn: existingRowIndex === -1 ? now : _rowObjectAt(sheet, SUBMISSION_HEADERS, existingRowIndex).SubmittedOn,
+    LastUpdated: now,
+  };
+  if (existingRowIndex === -1) {
+    sheet.appendRow(_rowFromObj(SUBMISSION_HEADERS, rowObj));
+  } else {
+    _writeRowObject(sheet, SUBMISSION_HEADERS, existingRowIndex, rowObj);
+  }
+  _logRaw(user, existingRowIndex === -1 ? 'CREATE' : 'UPDATE', 'BidSubmission', bidId, 'Submitted bid for ' + profile.CompanyName);
+  return { success: true };
+}
+
+function getMyBidSubmissions(token) {
+  const user = requireAuth(token);
+  if (user.role !== 'vendor') throw new Error('Vendor authorization required.');
+  const rows = sheetToObjects(getSheet(SH.SUBMISSIONS)).filter(s => s.VendorEmail === user.email);
+  rows.sort((a, b) => new Date(b.LastUpdated || 0) - new Date(a.LastUpdated || 0));
+  return { success: true, submissions: rows.map(s => ({ ...s, documents: _safeParseJSON(s.Documents, {}) })) };
+}
+
+function getBidSubmissionsForBid(token, bidId) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const rows = sheetToObjects(getSheet(SH.SUBMISSIONS)).filter(s => s.BidID === bidId);
+  rows.sort((a, b) => new Date(a.SubmittedOn || 0) - new Date(b.SubmittedOn || 0));
+  return { success: true, submissions: rows.map(s => ({ ...s, documents: _safeParseJSON(s.Documents, {}) })) };
+}
+
 // ── STAFF (USERS) MANAGEMENT ────────────────────────────────────
 function getUsers(token) {
   const user = requireAuth(token);
@@ -1205,6 +1302,7 @@ function setup() {
   _initVendors();
   _initBids();
   _initInquiries();
+  _initSubmissions();
   _initAuditLog();
   _initConfig();
   console.log('✅ BiddersHub setup complete!');
@@ -1247,6 +1345,13 @@ function _initInquiries() {
   if (sheet.getLastRow() > 0) return;
   sheet.appendRow(INQUIRY_HEADERS);
   _fmtHeader(sheet, '#1B5E20', INQUIRY_HEADERS.length);
+}
+
+function _initSubmissions() {
+  const sheet = getSheet(SH.SUBMISSIONS);
+  if (sheet.getLastRow() > 0) return;
+  sheet.appendRow(SUBMISSION_HEADERS);
+  _fmtHeader(sheet, '#1B5E20', SUBMISSION_HEADERS.length);
 }
 
 function _initAuditLog() {
