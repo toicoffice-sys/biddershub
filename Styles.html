@@ -6,9 +6,8 @@
     reference numbers (ITB-2026-0001), and status conveyed the way a real
     procurement office would — different ink colors for different stages,
     as if each record had been stamped by hand (blue = received/pending,
-    green = approved, oxblood = closed/rejected). Serif for headings reads
-    as an official register; mono for reference numbers and dates reads
-    as ledger data; Inter carries the day-to-day UI.
+    green = approved, oxblood = closed/rejected). Mono for reference numbers
+    and dates reads as ledger data; Inter carries everything else.
   */
 
   :root {
@@ -44,7 +43,6 @@
     --shadow: 0 1px 2px rgba(20,30,20,.06), 0 1px 1px rgba(20,30,20,.05);
     --shadow-lg: 0 12px 28px rgba(18,40,25,.16), 0 2px 8px rgba(18,40,25,.08);
 
-    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
     --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --mono: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
   }
@@ -60,7 +58,7 @@
   a { color: var(--g700); text-decoration: none; }
   a:hover { text-decoration: underline; }
   button { font-family: inherit; cursor: pointer; }
-  h1, h2, h3, h4 { margin: 0 0 .4em; font-weight: 600; font-family: var(--serif); color: var(--ink); }
+  h1, h2, h3, h4 { margin: 0 0 .4em; font-weight: 700; font-family: var(--sans); color: var(--ink); }
   h1 { letter-spacing: -.01em; }
   p { margin: 0 0 .6em; line-height: 1.55; }
   @media (prefers-reduced-motion: reduce) {
@@ -86,7 +84,7 @@
   }
   .brand { display: flex; align-items: baseline; gap: 10px; }
   .brand .brand-name {
-    font-family: var(--serif); font-weight: 600; font-size: 1.22rem; letter-spacing: -.01em; color: #fff;
+    font-family: var(--sans); font-weight: 700; font-size: 1.22rem; letter-spacing: -.01em; color: #fff;
   }
   .brand .brand-sub {
     font-family: var(--mono); font-size: .62rem; letter-spacing: .12em; text-transform: uppercase;

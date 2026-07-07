@@ -121,6 +121,7 @@ function routeToView() {
   document.getElementById('view-public').classList.add('hidden');
   document.getElementById('view-vendor').classList.add('hidden');
   document.getElementById('view-staff').classList.add('hidden');
+  document.getElementById('view-help').classList.add('hidden');
   document.getElementById('public-hero').classList.add('hidden');
 
   if (!SESSION.token) {
@@ -136,6 +137,20 @@ function routeToView() {
     document.getElementById('view-staff').classList.remove('hidden');
     configureStaffTabsForRole(SESSION.user.role);
   }
+}
+
+function showHelp() {
+  document.getElementById('view-public').classList.add('hidden');
+  document.getElementById('view-vendor').classList.add('hidden');
+  document.getElementById('view-staff').classList.add('hidden');
+  document.getElementById('public-hero').classList.add('hidden');
+  document.getElementById('view-help').classList.remove('hidden');
+}
+
+function switchHelpTab(tabId) {
+  document.querySelectorAll('#view-help .tab').forEach(b => b.classList.toggle('active', b.dataset.helpTab === tabId));
+  document.querySelectorAll('#view-help .help-panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('help-panel-' + tabId).classList.remove('hidden');
 }
 
 async function doLogout() {
