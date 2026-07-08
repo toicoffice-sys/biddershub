@@ -114,13 +114,23 @@ function getSheet(name) {
   return sheet;
 }
 
+// Sheets silently upgrades date-looking strings (e.g. the ISO strings we write
+// for timestamps, or datetime-local input values) into native Date-typed cells.
+// A raw Date object surviving into a google.script.run response can fail to
+// serialize back to the client in ways that don't reach the failure handler
+// cleanly (the call resolves with null instead of rejecting) — so every read
+// normalizes Date cells to ISO strings before they ever leave the sheet layer.
+function _normalizeCell(v) {
+  return (v instanceof Date) ? v.toISOString() : v;
+}
+
 function sheetToObjects(sheet) {
   const data = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
   const headers = data[0];
   return data.slice(1).map(row => {
     const obj = {};
-    headers.forEach((h, i) => obj[h] = row[i]);
+    headers.forEach((h, i) => obj[h] = _normalizeCell(row[i]));
     return obj;
   });
 }
@@ -143,7 +153,7 @@ function _findRowIndex(sheet, idColName, idValue) {
 function _rowObjectAt(sheet, headers, rowIndex1) {
   const values = sheet.getRange(rowIndex1, 1, 1, headers.length).getValues()[0];
   const obj = {};
-  headers.forEach((h, i) => obj[h] = values[i]);
+  headers.forEach((h, i) => obj[h] = _normalizeCell(values[i]));
   return obj;
 }
 
@@ -928,12 +938,17 @@ function getBidById(id) {
 }
 
 function getMyBids(token, statusFilter) {
-  const user = requireAuth(token);
-  let bids = sheetToObjects(getSheet(SH.BIDS));
-  if (!isCPD(user)) bids = bids.filter(b => b.CreatedBy === user.email);
-  if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
-  bids.sort((a, b) => new Date(b.CreatedOn) - new Date(a.CreatedOn));
-  return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}) })) };
+  try {
+    const user = requireAuth(token);
+    let bids = sheetToObjects(getSheet(SH.BIDS));
+    if (!isCPD(user)) bids = bids.filter(b => b.CreatedBy === user.email);
+    if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
+    bids.sort((a, b) => (new Date(b.CreatedOn).getTime() || 0) - (new Date(a.CreatedOn).getTime() || 0));
+    return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}) })) };
+  } catch (err) {
+    console.error('getMyBids failed: ' + err.message + '\n' + err.stack);
+    throw new Error('getMyBids: ' + err.message);
+  }
 }
 
 function getDashboardStats(token) {
