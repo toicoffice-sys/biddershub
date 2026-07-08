@@ -61,11 +61,13 @@ recognized, you'll be prompted to apply for accreditation instead (see above).
 Once signed in, the **Accreditation Status** tab shows:
 
 - Your current status, stamped like an office document:
-  - **Blue "Pending"** — submitted, awaiting CPD review
+  - **Blue "Pending"** — submitted, awaiting CPD review. You can still edit your details or replace
+    any document yourself while it sits in this state — no need to wait for the CPD to flag anything.
   - **Blue "Changes Requested"** — the CPD found something incomplete or incorrect; the reviewer's
-    notes explain what to fix, and a form to replace the affected documents appears right there —
-    no need to start over. Resubmitting sends it back to Pending automatically.
-  - **Green "Approved"** — accredited; your accreditation number and validity date appear here
+    notes explain what to fix, and the same edit form appears right there — no need to start over.
+    Saving sends it back to Pending automatically.
+  - **Green "Approved"** — accredited; your accreditation number and validity date appear here.
+    Approved applications can't be self-edited — contact the CPD if something needs to change.
   - **Red "Rejected"** — see the reviewer's notes for the reason; you may re-apply with corrected documents
 - The documents you submitted, each linked so you can confirm what's on file
 

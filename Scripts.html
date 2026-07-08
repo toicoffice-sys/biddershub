@@ -580,19 +580,45 @@ function renderVendorStatusPanel(p) {
       ${renderDocList(p.documents, DOCUMENT_TYPES)}
     </div>`;
 
-  if (p.AccreditationStatus === 'ChangesRequested') {
+  const canEdit = ['Pending', 'ChangesRequested'].includes(p.AccreditationStatus);
+  if (canEdit) {
     REVISION_DOCS = Object.assign({}, p.documents || {});
     html += `
       <div class="card">
-        <h3>Update Your Documents</h3>
-        <p class="hint">Replace any PDF below that needs correcting, then resubmit for another review.</p>
+        <h3>${p.AccreditationStatus === 'ChangesRequested' ? 'Update Your Application' : 'Edit Your Application'}</h3>
+        <p class="hint">${p.AccreditationStatus === 'ChangesRequested'
+          ? 'Fix the issue described above, then resubmit for another review.'
+          : 'Your application hasn’t been reviewed yet — you can still correct details or replace documents.'}</p>
+        <div class="field-row">
+          <div class="field"><label>Company Name</label><input type="text" id="revision-companyName" value="${escapeHtml(p.CompanyName)}"></div>
+          <div class="field"><label>Trade Name</label><input type="text" id="revision-tradeName" value="${escapeHtml(p.TradeName || '')}"></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Business Category</label><select id="revision-businessCategory"><option value="">Select…</option></select></div>
+          <div class="field"><label>TIN Number</label><input type="text" id="revision-tinNumber" value="${escapeHtml(p.TINNumber || '')}"></div>
+        </div>
+        <div class="field"><label>DTI / SEC Registration No.</label><input type="text" id="revision-dtisecReg" value="${escapeHtml(p.DTISECReg || '')}"></div>
+        <div class="field-row">
+          <div class="field"><label>Contact Person</label><input type="text" id="revision-contactPerson" value="${escapeHtml(p.ContactPerson)}"></div>
+          <div class="field"><label>Contact Number</label><input type="tel" id="revision-contactNumber" value="${escapeHtml(p.ContactNumber)}"></div>
+        </div>
+        <div class="field"><label>Business Address</label><textarea id="revision-address">${escapeHtml(p.Address || '')}</textarea></div>
+        <label>Documents</label>
         <div id="revision-doc-slots"></div>
-        <button class="btn btn-primary" onclick="submitRevision()">Resubmit for Review</button>
+        <button class="btn btn-primary" onclick="submitRevision()">${p.AccreditationStatus === 'ChangesRequested' ? 'Resubmit for Review' : 'Save Changes'}</button>
         <div id="revision-error" class="error-text"></div>
       </div>`;
   }
   el.innerHTML = html;
-  if (p.AccreditationStatus === 'ChangesRequested') renderRevisionDocSlots();
+  if (canEdit) {
+    renderRevisionDocSlots();
+    const catSel = document.getElementById('revision-businessCategory');
+    CATEGORIES.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c; opt.selected = c === p.BusinessCategory;
+      catSel.appendChild(opt);
+    });
+  }
 }
 
 /** Renders the checklist of uploaded documents by type. Pass DOCUMENT_TYPES (vendor accreditation) or BID_DOCUMENT_TYPES (bid opportunities) for labels. */
@@ -643,11 +669,22 @@ async function handleRevisionDocFile(docKey, inputEl) {
 async function submitRevision() {
   const errEl = document.getElementById('revision-error');
   errEl.textContent = '';
+  const d = {
+    companyName: document.getElementById('revision-companyName').value.trim(),
+    tradeName: document.getElementById('revision-tradeName').value.trim(),
+    businessCategory: document.getElementById('revision-businessCategory').value,
+    tinNumber: document.getElementById('revision-tinNumber').value.trim(),
+    dtisecReg: document.getElementById('revision-dtisecReg').value.trim(),
+    contactPerson: document.getElementById('revision-contactPerson').value.trim(),
+    contactNumber: document.getElementById('revision-contactNumber').value.trim(),
+    address: document.getElementById('revision-address').value.trim(),
+    documents: REVISION_DOCS,
+  };
   try {
-    await gsRun('updateVendorDocuments', SESSION.token, { documents: REVISION_DOCS });
-    toast('Documents resubmitted for CPD review.', 'success');
+    await gsRun('updateVendorDocuments', SESSION.token, d);
+    toast('Application updated.', 'success');
     loadVendorStatus();
-  } catch (e) { errEl.textContent = e.message || 'Failed to resubmit.'; }
+  } catch (e) { errEl.textContent = e.message || 'Failed to save changes.'; }
 }
 
 async function loadVendorBoard() {

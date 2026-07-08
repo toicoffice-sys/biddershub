@@ -716,6 +716,13 @@ function resendVendorReminder(token, vendorId) {
  * their details/documents and resubmits. No re-verification needed since
  * they're acting from an authenticated session, not a fresh application.
  */
+/**
+ * updateVendorDocuments — a vendor edits their own profile info/documents.
+ * Allowed anytime while Pending (no need to wait for CPD to flag anything) or
+ * ChangesRequested (the resubmission flow). Not allowed once Approved or
+ * Rejected — an approved record shouldn't change without CPD re-review, and a
+ * rejected one requires a fresh, re-verified application instead.
+ */
 function updateVendorDocuments(token, d) {
   const user = requireAuth(token);
   if (user.role !== 'vendor') throw new Error('Vendor authorization required.');
@@ -723,7 +730,10 @@ function updateVendorDocuments(token, d) {
   const rowIndex = _findRowIndex(sheet, 'Email', user.email);
   if (rowIndex === -1) throw new Error('Vendor record not found.');
   const obj = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
-  if (obj.AccreditationStatus !== 'ChangesRequested') throw new Error('Your application is not currently awaiting revision.');
+  const wasChangesRequested = obj.AccreditationStatus === 'ChangesRequested';
+  if (!['Pending', 'ChangesRequested'].includes(obj.AccreditationStatus)) {
+    throw new Error('You can only update your application while it is Pending or awaiting requested changes.');
+  }
 
   if (d.companyName) obj.CompanyName = d.companyName.trim();
   if (d.tradeName !== undefined) obj.TradeName = d.tradeName.trim();
@@ -742,7 +752,7 @@ function updateVendorDocuments(token, d) {
   obj.SubmittedOn = now;
   obj.LastUpdated = now;
   _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
-  _logRaw(user, 'RESUBMIT', 'VendorAccreditation', obj.VendorID, 'Vendor updated documents after CPD revision request');
+  _logRaw(user, 'UPDATE', 'VendorAccreditation', obj.VendorID, wasChangesRequested ? 'Vendor updated application after CPD revision request' : 'Vendor updated their pending application');
   return { success: true };
 }
 
