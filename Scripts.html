@@ -16,7 +16,16 @@ let CURRENT_BID_ID = null;
 function gsRun(fnName, ...args) {
   return new Promise((resolve, reject) => {
     google.script.run
-      .withSuccessHandler(resolve)
+      .withSuccessHandler(res => {
+        if (res === null || res === undefined) {
+          // google.script.run occasionally delivers null instead of invoking the
+          // failure handler for certain server-side exceptions — this is a known
+          // quirk of the Apps Script client bridge, not a sign the call "worked."
+          reject(new Error(fnName + '() returned no data — the server likely threw an error. Check the Apps Script editor’s Executions log for the real cause.'));
+        } else {
+          resolve(res);
+        }
+      })
       .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))
       [fnName](...args);
   });
