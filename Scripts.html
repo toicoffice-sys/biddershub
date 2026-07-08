@@ -1100,33 +1100,59 @@ function renderDashboard(s) {
 }
 
 // ── STAFF: USERS MANAGEMENT (cpd_admin only) ─────────────────────
+let STAFF_USERS_CACHE = [];
+
 async function loadUsers() {
   const el = document.getElementById('staff-users-table');
   el.innerHTML = '<p class="hint">Loading…</p>';
   try {
     const res = await gsRun('getUsers', SESSION.token);
+    STAFF_USERS_CACHE = res.users;
     el.innerHTML = `<table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>` +
       res.users.map(u => `<tr>
         <td>${escapeHtml(u.Email)}</td><td>${escapeHtml(u.FullName)}</td><td>${escapeHtml(roleLabel(u.Role))}</td>
         <td>${escapeHtml(u.Department)}</td><td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
-        <td>${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : '<span class="hint">—</span>'}</td>
+        <td>
+          <button class="btn btn-sm btn-outline" onclick="openUserEditor('${u.UserID}')">Edit</button>
+          ${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : ''}
+        </td>
       </tr>`).join('') + `</tbody></table>`;
   } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users. ' + escapeHtml(e.message || String(e)) + '</p>'; }
 }
 
-async function openUserEditor() {
-  const email = window.prompt('Staff email address (@dlsl.edu.ph):');
-  if (!email) return;
-  const fullName = window.prompt('Full name:');
-  if (!fullName) return;
-  const role = window.prompt('Role — enter exactly one of: cpd_admin, cpd_officer, proponent');
-  if (!['cpd_admin', 'cpd_officer', 'proponent'].includes(role)) { toast('Invalid role.', 'error'); return; }
-  const department = window.prompt('Department:') || '';
+function openUserEditor(userId) {
+  const existing = userId ? STAFF_USERS_CACHE.find(u => u.UserID === userId) : null;
+  document.getElementById('edituser-title').textContent = existing ? 'Edit Staff User' : 'Add Staff User';
+  const emailInput = document.getElementById('edituser-email');
+  emailInput.value = existing ? existing.Email : '';
+  emailInput.disabled = !!existing;
+  document.getElementById('edituser-email-hint').style.display = existing ? '' : 'none';
+  document.getElementById('edituser-fullName').value = existing ? existing.FullName : '';
+  document.getElementById('edituser-role').value = existing ? existing.Role : 'cpd_officer';
+  document.getElementById('edituser-department').value = existing ? existing.Department : '';
+  document.getElementById('edituser-status-field').style.display = existing ? '' : 'none';
+  document.getElementById('edituser-status').value = existing ? existing.Status : 'Active';
+  document.getElementById('edituser-error').textContent = '';
+  openModal('modal-edit-user');
+}
+
+async function submitEditUser() {
+  const errEl = document.getElementById('edituser-error');
+  errEl.textContent = '';
+  const d = {
+    email: document.getElementById('edituser-email').value.trim(),
+    fullName: document.getElementById('edituser-fullName').value.trim(),
+    role: document.getElementById('edituser-role').value,
+    department: document.getElementById('edituser-department').value.trim(),
+    status: document.getElementById('edituser-status').value,
+  };
+  if (!d.email || !d.fullName) { errEl.textContent = 'Email and full name are required.'; return; }
   try {
-    await gsRun('saveUser', SESSION.token, { email, fullName, role, department });
+    await gsRun('saveUser', SESSION.token, d);
     toast('Staff user saved.', 'success');
+    closeModal('modal-edit-user');
     loadUsers();
-  } catch (e) { toast(e.message || 'Failed to save staff user.', 'error'); }
+  } catch (e) { errEl.textContent = e.message || 'Failed to save staff user.'; }
 }
 
 async function deactivateUserAction(userId) {

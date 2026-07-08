@@ -504,6 +504,40 @@
   </div>
 </div>
 
+<!-- ── MODAL: ADD / EDIT STAFF USER (CPD Admin) ──────────── -->
+<div id="modal-edit-user" class="modal-overlay hidden">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" onclick="closeModal('modal-edit-user')">&times;</button>
+    <h3 id="edituser-title">Add Staff User</h3>
+    <div class="field">
+      <label>Email Address *</label>
+      <input type="email" id="edituser-email">
+      <p class="hint" id="edituser-email-hint" style="display:none;">Email can't be changed once created.</p>
+    </div>
+    <div class="field"><label>Full Name *</label><input type="text" id="edituser-fullName"></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Role *</label>
+        <select id="edituser-role">
+          <option value="cpd_admin">CPD Administrator</option>
+          <option value="cpd_officer">CPD Officer</option>
+          <option value="proponent">Proponent</option>
+        </select>
+      </div>
+      <div class="field"><label>Department</label><input type="text" id="edituser-department"></div>
+    </div>
+    <div class="field" id="edituser-status-field" style="display:none;">
+      <label>Status</label>
+      <select id="edituser-status">
+        <option value="Active">Active</option>
+        <option value="Inactive">Inactive</option>
+      </select>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="submitEditUser()">Save</button>
+    <div id="edituser-error" class="error-text"></div>
+  </div>
+</div>
+
 <?!= include('Scripts'); ?>
 </body>
 </html>

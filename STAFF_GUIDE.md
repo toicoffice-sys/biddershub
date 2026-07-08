@@ -113,8 +113,15 @@ Live metrics computed from the sheets — no manual tracking needed:
 
 ## Managing staff users (Admin only)
 
-**Staff Users** tab: **+ Add Staff User** prompts for email, name, role, and department.
-**Deactivate** revokes sign-in access without deleting their history.
+**Staff Users** tab: **+ Add Staff User** opens a form for email, name, role (CPD Administrator /
+CPD Officer / Proponent), and department. **Edit** on any row opens the same form pre-filled —
+email can't be changed once created, but name, role, department, and status (Active/Inactive) can.
+Toggling status to Inactive there has the same effect as **Deactivate**, and switching it back to
+Active reinstates sign-in access without recreating the account or losing its history.
+
+Note: vendor accounts are managed separately under the **Vendor Accreditation** tab (see above) —
+they carry accreditation-specific fields (documents, status, expiry) that don't fit the staff Users
+sheet, and vendors sign in through their own portal rather than this staff role list.
 
 ## Audit log (Admin only)
 
