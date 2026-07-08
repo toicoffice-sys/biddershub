@@ -136,6 +136,9 @@
             <option value="Rejected">Rejected</option>
             <option value="Expired">Expired</option>
           </select>
+          <div style="flex:1;"></div>
+          <button class="btn btn-outline" onclick="openBulkVendorModal()">Bulk Upload</button>
+          <button class="btn btn-primary" onclick="openAddVendorModal()">+ Add Accredited Vendor</button>
         </div>
         <div id="staff-vendors-table"></div>
       </div>
@@ -452,6 +455,52 @@
     <button class="modal-close" onclick="closeModal('modal-submissions')">&times;</button>
     <h3>Bid Submissions</h3>
     <div id="submissions-list"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: ADD ACCREDITED VENDOR (CPD) ────────────────── -->
+<div id="modal-add-vendor" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-add-vendor')">&times;</button>
+    <h3>Add Accredited Vendor</h3>
+    <p class="hint">Registers a vendor as already accredited — skips the public application and email
+       verification flow entirely. Use this for vendors you've already vetted outside the system
+       (e.g. migrating an existing PhilGEPS-accredited list).</p>
+    <div class="field-row">
+      <div class="field"><label>Company Name *</label><input type="text" id="addv-companyName"></div>
+      <div class="field"><label>Trade Name</label><input type="text" id="addv-tradeName"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Business Category</label><select id="addv-businessCategory"><option value="">Select…</option></select></div>
+      <div class="field"><label>TIN Number</label><input type="text" id="addv-tinNumber"></div>
+    </div>
+    <div class="field"><label>DTI / SEC Registration No.</label><input type="text" id="addv-dtisecReg"></div>
+    <div class="field-row">
+      <div class="field"><label>Contact Person *</label><input type="text" id="addv-contactPerson"></div>
+      <div class="field"><label>Contact Number *</label><input type="tel" id="addv-contactNumber"></div>
+    </div>
+    <div class="field"><label>Email Address *</label><input type="email" id="addv-email"></div>
+    <div class="field"><label>Business Address</label><textarea id="addv-address"></textarea></div>
+    <div class="field"><label>Notes (optional)</label><input type="text" id="addv-notes" placeholder="e.g. Migrated from PhilGEPS registry"></div>
+    <button class="btn btn-primary btn-block" onclick="submitAddVendor()">Add as Accredited</button>
+    <div id="addv-error" class="error-text"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: BULK UPLOAD VENDORS (CPD) ──────────────────── -->
+<div id="modal-bulk-vendor" class="modal-overlay hidden">
+  <div class="modal" style="max-width:720px;">
+    <button class="modal-close" onclick="closeModal('modal-bulk-vendor')">&times;</button>
+    <h3>Bulk Upload Accredited Vendors</h3>
+    <p class="hint">Paste rows copied from a spreadsheet (tab-separated) or a comma-separated list, one
+       vendor per line, in this column order:</p>
+    <p class="hint"><code>Company Name, Trade Name, Business Category, TIN Number, DTI/SEC Reg, Contact Person, Contact Number, Email, Address</code></p>
+    <p class="hint">Only Company Name, Contact Person, Contact Number, and Email are required — leave
+       the others blank if you don't have them. A header row is fine; it's detected and skipped.</p>
+    <div class="field"><textarea id="bulkv-input" rows="10" placeholder="ABC Construction Corp&#9;ABC Builders&#9;Infrastructure & Construction&#9;123-456-789-000&#9;SEC-CS201512345&#9;Juan Dela Cruz&#9;0917-123-4567&#9;juan@abcconstruction.ph&#9;Lipa City, Batangas"></textarea></div>
+    <button class="btn btn-primary" onclick="submitBulkVendors()">Import</button>
+    <div id="bulkv-result" style="margin-top:14px;"></div>
+    <div id="bulkv-error" class="error-text"></div>
   </div>
 </div>
 

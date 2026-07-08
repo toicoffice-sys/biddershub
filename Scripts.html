@@ -111,7 +111,7 @@ async function init() {
 }
 
 function populateCategorySelects() {
-  const ids = ['public-category-filter', 'vendor-category-filter', 'apply-businessCategory', 'editor-category'];
+  const ids = ['public-category-filter', 'vendor-category-filter', 'apply-businessCategory', 'editor-category', 'addv-businessCategory'];
   ids.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -962,6 +962,80 @@ async function reviewVendorAction(vendorId, decision) {
 async function resendReminderAction(vendorId) {
   try { await gsRun('resendVendorReminder', SESSION.token, vendorId); toast('Reminder email resent.', 'success'); }
   catch (e) { toast(e.message || 'Failed to resend reminder.', 'error'); }
+}
+
+// ── STAFF: ADD / BULK-UPLOAD ACCREDITED VENDORS ──────────────────
+function openAddVendorModal() {
+  ['addv-companyName', 'addv-tradeName', 'addv-tinNumber', 'addv-dtisecReg',
+   'addv-contactPerson', 'addv-contactNumber', 'addv-email', 'addv-address', 'addv-notes']
+    .forEach(id => document.getElementById(id).value = '');
+  document.getElementById('addv-businessCategory').value = '';
+  document.getElementById('addv-error').textContent = '';
+  openModal('modal-add-vendor');
+}
+
+async function submitAddVendor() {
+  const errEl = document.getElementById('addv-error');
+  errEl.textContent = '';
+  const d = {
+    companyName: document.getElementById('addv-companyName').value.trim(),
+    tradeName: document.getElementById('addv-tradeName').value.trim(),
+    businessCategory: document.getElementById('addv-businessCategory').value,
+    tinNumber: document.getElementById('addv-tinNumber').value.trim(),
+    dtisecReg: document.getElementById('addv-dtisecReg').value.trim(),
+    contactPerson: document.getElementById('addv-contactPerson').value.trim(),
+    contactNumber: document.getElementById('addv-contactNumber').value.trim(),
+    email: document.getElementById('addv-email').value.trim(),
+    address: document.getElementById('addv-address').value.trim(),
+    notes: document.getElementById('addv-notes').value.trim(),
+  };
+  try {
+    await gsRun('addAccreditedVendor', SESSION.token, d);
+    toast('Vendor added as accredited.', 'success');
+    closeModal('modal-add-vendor');
+    loadVendorApplications();
+  } catch (e) { errEl.textContent = e.message || 'Failed to add vendor.'; }
+}
+
+function openBulkVendorModal() {
+  document.getElementById('bulkv-input').value = '';
+  document.getElementById('bulkv-result').innerHTML = '';
+  document.getElementById('bulkv-error').textContent = '';
+  openModal('modal-bulk-vendor');
+}
+
+function _parseBulkVendorLine(line) {
+  const delim = line.includes('\t') ? '\t' : ',';
+  const cols = line.split(delim).map(c => c.trim());
+  return {
+    companyName: cols[0] || '', tradeName: cols[1] || '', businessCategory: cols[2] || '',
+    tinNumber: cols[3] || '', dtisecReg: cols[4] || '', contactPerson: cols[5] || '',
+    contactNumber: cols[6] || '', email: cols[7] || '', address: cols[8] || '',
+  };
+}
+
+async function submitBulkVendors() {
+  const errEl = document.getElementById('bulkv-error');
+  const resultEl = document.getElementById('bulkv-result');
+  errEl.textContent = '';
+  resultEl.innerHTML = '';
+  const lines = document.getElementById('bulkv-input').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { errEl.textContent = 'Paste at least one vendor row.'; return; }
+  // Skip an obvious header row (first line mentions "email" or "company")
+  if (/email|company/i.test(lines[0])) lines.shift();
+  if (!lines.length) { errEl.textContent = 'No data rows found after the header.'; return; }
+
+  const rows = lines.map(_parseBulkVendorLine);
+  try {
+    const res = await gsRun('bulkAddAccreditedVendors', SESSION.token, rows);
+    const r = res.results;
+    let html = `<p class="hint">${r.created} added, ${r.updated} updated${r.failed.length ? ', ' + r.failed.length + ' failed' : ''}.</p>`;
+    if (r.failed.length) {
+      html += `<ul class="file-list">` + r.failed.map(f => `<li><span class="error-text">Row ${f.row}${f.email ? ' (' + escapeHtml(f.email) + ')' : ''}: ${escapeHtml(f.message)}</span></li>`).join('') + `</ul>`;
+    }
+    resultEl.innerHTML = html;
+    if (r.created || r.updated) { toast('Bulk import complete.', 'success'); loadVendorApplications(); }
+  } catch (e) { errEl.textContent = e.message || 'Bulk import failed.'; }
 }
 
 // ── STAFF: INQUIRIES REVIEW ──────────────────────────────────────

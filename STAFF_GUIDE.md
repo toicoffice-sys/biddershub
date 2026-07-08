@@ -84,6 +84,19 @@ Pending application:
 - **Reject** — a hard stop. Requires a reason, which the vendor sees on their status page; they'd
   need to start a fresh application (with a new email verification) to try again.
 
+### Adding already-accredited vendors directly
+
+If you've already vetted a vendor outside the system (e.g. migrating an existing PhilGEPS list),
+you don't need to make them go through the public application: use **+ Add Accredited Vendor** for
+one at a time, or **Bulk Upload** for many at once. Both skip the application/OTP flow and set the
+vendor straight to Approved with an accreditation number assigned immediately.
+
+For Bulk Upload, paste rows (tab-separated, as copied from a spreadsheet, or comma-separated) in
+this order: `Company Name, Trade Name, Business Category, TIN Number, DTI/SEC Reg, Contact Person,
+Contact Number, Email, Address`. Only Company Name, Contact Person, Contact Number, and Email are
+required. A header row is fine — it's detected and skipped. Each row is processed independently, so
+one bad row won't block the rest; failures are listed with the reason after import.
+
 ## Responding to inquiries
 
 **Inquiries** tab lists vendor questions on published bids. **Respond** to answer — once

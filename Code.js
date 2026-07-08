@@ -652,6 +652,105 @@ function _emailVendor(email, subject, bodyIntro) {
 }
 
 /**
+ * _addOrUpsertApprovedVendor — shared logic for CPD directly registering an
+ * already-accredited vendor (single add or bulk import), bypassing the
+ * public apply/OTP flow entirely since CPD is vouching for them directly.
+ * Upserts by email: creates a new Approved record, or updates an existing
+ * non-Approved one to Approved (refuses to touch an already-Approved row).
+ */
+function _addOrUpsertApprovedVendor(user, d) {
+  const email = (d.email || '').trim().toLowerCase();
+  if (!_isValidEmail(email)) throw new Error('Invalid email: "' + (d.email || '') + '"');
+  if (!d.companyName || !d.companyName.trim()) throw new Error('Company name is required (email: ' + email + ').');
+  if (!d.contactPerson || !d.contactPerson.trim()) throw new Error('Contact person is required (email: ' + email + ').');
+  if (!d.contactNumber || !d.contactNumber.trim()) throw new Error('Contact number is required (email: ' + email + ').');
+
+  const sheet = getSheet(SH.VENDORS);
+  const rowIndex = _findRowIndex(sheet, 'Email', email);
+  const now = new Date().toISOString();
+  const oneYear = new Date(); oneYear.setFullYear(oneYear.getFullYear() + 1);
+  const defaultExpiry = d.expiryDate || oneYear.toISOString();
+
+  if (rowIndex !== -1) {
+    const existing = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
+    if (existing.AccreditationStatus === 'Approved') throw new Error('Already an accredited vendor: ' + email);
+    const obj = Object.assign({}, existing, {
+      CompanyName: d.companyName.trim(),
+      TradeName: (d.tradeName || '').trim(),
+      BusinessCategory: (d.businessCategory || '').trim(),
+      TINNumber: (d.tinNumber || '').trim(),
+      DTISECReg: (d.dtisecReg || '').trim(),
+      ContactPerson: d.contactPerson.trim(),
+      ContactNumber: d.contactNumber.trim(),
+      Email: email,
+      Address: (d.address || '').trim(),
+      AccreditationStatus: 'Approved',
+      SubmittedOn: existing.SubmittedOn || now,
+      ReviewedBy: user.email,
+      ReviewedOn: now,
+      ReviewNotes: d.notes || 'Added directly by CPD',
+      ExpiryDate: defaultExpiry,
+      LastUpdated: now,
+    });
+    if (!obj.AccreditationNo) obj.AccreditationNo = _nextRegistryNumber('ACC');
+    _writeRowObject(sheet, VENDOR_HEADERS, rowIndex, obj);
+    return { email, action: 'updated' };
+  }
+
+  sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
+    VendorID: _id(),
+    AccreditationNo: _nextRegistryNumber('ACC'),
+    CompanyName: d.companyName.trim(),
+    TradeName: (d.tradeName || '').trim(),
+    BusinessCategory: (d.businessCategory || '').trim(),
+    TINNumber: (d.tinNumber || '').trim(),
+    DTISECReg: (d.dtisecReg || '').trim(),
+    ContactPerson: d.contactPerson.trim(),
+    ContactNumber: d.contactNumber.trim(),
+    Email: email,
+    Address: (d.address || '').trim(),
+    Documents: JSON.stringify({}),
+    AccreditationStatus: 'Approved',
+    SubmittedOn: now,
+    ReviewedBy: user.email,
+    ReviewedOn: now,
+    ReviewNotes: d.notes || 'Added directly by CPD',
+    ExpiryDate: defaultExpiry,
+    LastUpdated: now,
+  }));
+  return { email, action: 'created' };
+}
+
+/** CPD adds a single already-accredited vendor directly — no application/OTP flow. */
+function addAccreditedVendor(token, d) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const result = _addOrUpsertApprovedVendor(user, d);
+  _logRaw(user, 'CREATE', 'VendorAccreditation', result.email, 'CPD directly ' + result.action + ' accredited vendor');
+  return { success: true };
+}
+
+/** CPD imports many already-accredited vendors at once (e.g. migrating a legacy list). */
+function bulkAddAccreditedVendors(token, rows) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  if (!Array.isArray(rows) || !rows.length) throw new Error('No rows to import.');
+  if (rows.length > 200) throw new Error('Please import at most 200 vendors at a time.');
+
+  const results = { created: 0, updated: 0, failed: [] };
+  rows.forEach((row, i) => {
+    try {
+      const outcome = _addOrUpsertApprovedVendor(user, row);
+      if (outcome.action === 'created') results.created++; else results.updated++;
+    } catch (err) {
+      results.failed.push({ row: i + 1, email: row.email || '', message: err.message });
+    }
+  });
+  _logRaw(user, 'BULK_CREATE', 'VendorAccreditation', '', 'Bulk-imported vendors: ' + results.created + ' created, ' + results.updated + ' updated, ' + results.failed.length + ' failed');
+  return { success: true, results };
+}
+
+/**
  * reviewAccreditation — CPD decides on a Pending application:
  *   Approved          — assigns a permanent accreditation number
  *   Rejected          — hard stop; vendor must start a fresh application
