@@ -220,6 +220,31 @@ function loadTabData(scope, tabId) {
   }
 }
 
+// ── LETTER OF INTENT ─────────────────────────────────────────
+async function submitLOIForm(btn) {
+  const company = document.getElementById('loi-company').value.trim();
+  const person  = document.getElementById('loi-person').value.trim();
+  const email   = document.getElementById('loi-email').value.trim();
+  const number  = document.getElementById('loi-number').value.trim();
+  const errEl   = document.getElementById('loi-error');
+  errEl.textContent = '';
+
+  if (!company) { errEl.textContent = 'Company name is required.'; return; }
+  if (!person)  { errEl.textContent = 'Contact person is required.'; return; }
+  if (!email)   { errEl.textContent = 'Contact email is required.'; return; }
+  if (!number)  { errEl.textContent = 'Contact number is required.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    await gsRun('submitLetterOfIntent', { companyName: company, contactPerson: person, contactEmail: email, contactNumber: number });
+    toast('Letter of Intent submitted! Check your email for confirmation.', 'success');
+    ['loi-company','loi-person','loi-email','loi-number'].forEach(id => document.getElementById(id).value = '');
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to submit. Please try again.';
+  }
+  btn.disabled = false; btn.textContent = 'Submit Letter of Intent';
+}
+
 // ── PUBLIC BID BOARD ─────────────────────────────────────────
 async function loadPublicBoard() {
   const grid = document.getElementById('public-bid-grid');

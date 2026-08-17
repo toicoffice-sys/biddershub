@@ -45,6 +45,31 @@
     <div id="view-public">
       <div style="height:24px;"></div>
 
+      <!-- ── LETTER OF INTENT ──────────────────────────────── -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="margin-bottom:4px;">Submit a Letter of Intent</h3>
+        <p class="hint" style="margin-bottom:16px;">Interested in participating in a bid? Submit your Letter of Intent and our team will get in touch. A confirmation with a link to our Vendor Accreditation System will be sent to your email.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="loi-company" placeholder="e.g. ABC Trading Corp.">
+          </div>
+          <div>
+            <label class="field-label">Contact Person <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="loi-person" placeholder="Full name">
+          </div>
+          <div>
+            <label class="field-label">Contact Email <span style="color:var(--danger)">*</span></label>
+            <input type="email" id="loi-email" placeholder="your@email.com">
+          </div>
+          <div>
+            <label class="field-label">Contact Number <span style="color:var(--danger)">*</span></label>
+            <input type="tel" id="loi-number" placeholder="e.g. 09xx-xxx-xxxx">
+          </div>
+        </div>
+        <p id="loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
+        <button class="btn btn-primary" style="margin-top:4px;" onclick="submitLOIForm(this)">Submit Letter of Intent</button>
+      </div>
 
       <div class="toolbar">
         <input type="text" id="public-search" placeholder="Search bid opportunities…">

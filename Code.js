@@ -18,7 +18,10 @@ const SH = {
   SUBMISSIONS: 'BidSubmissions',
   AUDIT:       'AuditLog',
   CONFIG:      'Config',
+  LOI:         'LettersOfIntent',
 };
+
+const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','SubmittedOn'];
 
 const USER_HEADERS       = ['UserID','Email','FullName','Role','Department','Status','AddedBy','AddedOn'];
 const VENDOR_HEADERS     = ['VendorID','AccreditationNo','CompanyName','TradeName','BusinessCategory','TINNumber','DTISECReg','ContactPerson','ContactNumber','Email','Address','Documents','AccreditationStatus','SubmittedOn','ReviewedBy','ReviewedOn','ReviewNotes','ExpiryDate','LastUpdated'];
@@ -639,6 +642,69 @@ function getAccreditationApplications(token, statusFilter) {
   if (statusFilter) rows = rows.filter(v => v.AccreditationStatus === statusFilter);
   rows.sort((a, b) => new Date(b.SubmittedOn || 0) - new Date(a.SubmittedOn || 0));
   return { success: true, vendors: rows.map(v => ({ ...v, documents: _safeParseJSON(v.Documents, {}) })) };
+}
+
+// ── LETTER OF INTENT ──────────────────────────────────────────
+function submitLetterOfIntent(data) {
+  const companyName   = (data.companyName   || '').trim();
+  const contactPerson = (data.contactPerson || '').trim();
+  const contactEmail  = (data.contactEmail  || '').trim().toLowerCase();
+  const contactNumber = (data.contactNumber || '').trim();
+
+  if (!companyName)   throw new Error('Company name is required.');
+  if (!contactPerson) throw new Error('Contact person is required.');
+  if (!contactEmail || !_isValidEmail(contactEmail)) throw new Error('Valid contact email is required.');
+  if (!contactNumber) throw new Error('Contact number is required.');
+
+  const sheet = getSheet(SH.LOI);
+  if (sheet.getLastRow() === 0) { sheet.appendRow(LOI_HEADERS); _fmtHeader(sheet, '#1B5E20', LOI_HEADERS.length); }
+
+  const now = new Date().toISOString();
+  sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, now]);
+
+  const accreditationUrl = ScriptApp.getService().getUrl();
+
+  // Auto-reply to submitter
+  try {
+    MailApp.sendEmail({
+      to: contactEmail,
+      replyTo: 'cpd.office@dlsl.edu.ph',
+      subject: 'BiddersHub — Letter of Intent Received',
+      body:
+        'Dear ' + contactPerson + ',\n\n' +
+        'Thank you for your Letter of Intent to participate in procurement opportunities at De La Salle Lipa.\n\n' +
+        'We have received the following details:\n' +
+        '  Company Name   : ' + companyName   + '\n' +
+        '  Contact Person : ' + contactPerson + '\n' +
+        '  Contact Email  : ' + contactEmail  + '\n' +
+        '  Contact Number : ' + contactNumber + '\n\n' +
+        'To be eligible to submit a bid, your company must first complete vendor accreditation. ' +
+        'Please visit the link below to apply:\n\n' +
+        accreditationUrl + '\n\n' +
+        'Our team will review your submission and reach out to you within 3–5 business days. ' +
+        'For inquiries, you may email us at cpd.office@dlsl.edu.ph.\n\n' +
+        '— DLSL Central Procurement Office · BiddersHub',
+    });
+  } catch (e) { console.error('LOI auto-reply failed for ' + contactEmail + ':', e); }
+
+  // Notify CPO office
+  try {
+    MailApp.sendEmail({
+      to: 'cpd.office@dlsl.edu.ph',
+      subject: 'BiddersHub — New Letter of Intent: ' + companyName,
+      body:
+        'A new Letter of Intent has been submitted via BiddersHub.\n\n' +
+        '  Company Name   : ' + companyName   + '\n' +
+        '  Contact Person : ' + contactPerson + '\n' +
+        '  Contact Email  : ' + contactEmail  + '\n' +
+        '  Contact Number : ' + contactNumber + '\n' +
+        '  Submitted On   : ' + now           + '\n\n' +
+        'View all letters of intent in the LettersOfIntent sheet of the BiddersHub spreadsheet.\n\n' +
+        '— BiddersHub Automated Notification',
+    });
+  } catch (e) { console.error('LOI CPO notification failed:', e); }
+
+  return { success: true };
 }
 
 function _emailVendor(email, subject, bodyIntro) {
@@ -1429,6 +1495,7 @@ function setup() {
   _initSubmissions();
   _initAuditLog();
   _initConfig();
+  _initLOI();
   console.log('✅ BiddersHub setup complete!');
   console.log('Seeded test accounts in the Users sheet: toic.test@dlsl.edu.ph (cpd_admin), cpd.test@dlsl.edu.ph (cpd_officer).');
   console.log('Replace these with real staff emails when ready, then sign in with the email on file.');
@@ -1483,6 +1550,13 @@ function _initAuditLog() {
   if (sheet.getLastRow() > 0) return;
   sheet.appendRow(AUDIT_HEADERS);
   _fmtHeader(sheet, '#37474F', AUDIT_HEADERS.length);
+}
+
+function _initLOI() {
+  const sheet = getSheet(SH.LOI);
+  if (sheet.getLastRow() > 0) return;
+  sheet.appendRow(LOI_HEADERS);
+  _fmtHeader(sheet, '#1B5E20', LOI_HEADERS.length);
 }
 
 function _initConfig() {
