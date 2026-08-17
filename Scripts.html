@@ -237,12 +237,10 @@ async function loadPublicBoard() {
 
 function renderPublicHeroStats(bids) {
   const published = bids.filter(b => b.status === 'Published').length;
-  const closed = bids.filter(b => b.status === 'Closed').length;
   const awarded = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
   document.getElementById('public-hero-stats').innerHTML = `
     <div class="register-item"><div class="num">${published}</div><div class="label">Open Opportunities</div></div>
-    <div class="register-item"><div class="num">${awarded}</div><div class="label">Awarded</div></div>
-    <div class="register-item"><div class="num">${closed}</div><div class="label">Closed / Archived</div></div>`;
+    <div class="register-item"><div class="num">${awarded}</div><div class="label">Awarded</div></div>`;
 }
 
 function renderBidGrid(container, bids, vendorMode) {
