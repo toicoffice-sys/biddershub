@@ -1,6 +1,6 @@
 # BiddersHub — CPD Staff Guide
 
-Internal reference for the Central Procurement Department (CPD) staff portal.
+Internal reference for the Central Procurement Office (CPD) staff portal.
 
 ## Roles
 

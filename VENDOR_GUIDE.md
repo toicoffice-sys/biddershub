@@ -1,6 +1,6 @@
 # BiddersHub — Vendor Guide
 
-BiddersHub is DLSL's Central Procurement Department (CPD) bidding portal. You can browse
+BiddersHub is DLSL's Central Procurement Office (CPD) bidding portal. You can browse
 bidding opportunities without an account. To apply for accreditation, ask questions, or check
 your status, you'll need to sign in — there are no passwords, just your email and a one-time code.
 

@@ -349,7 +349,7 @@ function _dispatchOTP(email) {
         'Your 6-digit access code is: ' + code + '\n\n' +
         'This code expires in 10 minutes.\n\n' +
         'If you did not request this code, please ignore this email.\n\n' +
-        '— DLSL Central Procurement Department · BiddersHub',
+        '— DLSL Central Procurement Office · BiddersHub',
     });
   } catch (e) {
     console.error('_dispatchOTP: MailApp.sendEmail failed for ' + email + ':', e);
@@ -646,7 +646,7 @@ function _emailVendor(email, subject, bodyIntro) {
     MailApp.sendEmail({
       to: email,
       subject: 'BiddersHub — ' + subject,
-      body: bodyIntro + '\n\n— DLSL Central Procurement Department · BiddersHub',
+      body: bodyIntro + '\n\n— DLSL Central Procurement Office · BiddersHub',
     });
   } catch (e) { console.error('_emailVendor failed for ' + email + ':', e); }
 }
@@ -1445,8 +1445,8 @@ function _initUsers() {
   if (sheet.getLastRow() > 0) return;
   sheet.appendRow(USER_HEADERS);
   const now = new Date().toISOString();
-  sheet.appendRow([_id(), 'toic.test@dlsl.edu.ph', 'CPD Administrator (Test)', 'cpd_admin', 'Central Procurement Department', 'Active', 'system', now]);
-  sheet.appendRow([_id(), 'cpd.test@dlsl.edu.ph', 'CPD Officer (Test)', 'cpd_officer', 'Central Procurement Department', 'Active', 'system', now]);
+  sheet.appendRow([_id(), 'toic.test@dlsl.edu.ph', 'CPD Administrator (Test)', 'cpd_admin', 'Central Procurement Office', 'Active', 'system', now]);
+  sheet.appendRow([_id(), 'cpd.test@dlsl.edu.ph', 'CPD Officer (Test)', 'cpd_officer', 'Central Procurement Office', 'Active', 'system', now]);
   _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
 }
 
