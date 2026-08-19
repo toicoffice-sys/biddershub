@@ -190,13 +190,43 @@ function awardLOI(token, loiId) {
   _migrateLOIHeaders(sheet);
   const data = sheet.getDataRange().getValues();
   const h = data[0];
-  const idIdx = h.indexOf('LOIID');
-  const statusIdx = h.indexOf('Status');
+  const idIdx      = h.indexOf('LOIID');
+  const statusIdx  = h.indexOf('Status');
+  const titleIdx   = h.indexOf('BidTitle');
   if (statusIdx === -1) throw new Error('Status column not found.');
+
   for (let i = 1; i < data.length; i++) {
     if (data[i][idIdx] === loiId) {
       sheet.getRange(i + 1, statusIdx + 1).setValue('Awarded');
       _logRaw(user, 'APPROVE', 'LOI', loiId, 'Awarded LOI submission');
+
+      // Also close the linked bid so the homepage Awarded Bids count updates
+      if (titleIdx !== -1) {
+        const bidTitle = data[i][titleIdx];
+        if (bidTitle) {
+          const bidSheet = getSheet(SH.BIDS);
+          const bidData  = bidSheet.getDataRange().getValues();
+          const bh       = bidData[0];
+          const bTitleIdx = bh.indexOf('Title');
+          const bStatusIdx = bh.indexOf('Status');
+          const bOutcomeIdx = bh.indexOf('Outcome');
+          const bClosedIdx  = bh.indexOf('ClosedOn');
+          const bModIdx     = bh.indexOf('LastModified');
+          for (let j = 1; j < bidData.length; j++) {
+            if (bidData[j][bTitleIdx] === bidTitle && bidData[j][bStatusIdx] === 'Published') {
+              const now = new Date().toISOString();
+              bidSheet.getRange(j + 1, bStatusIdx + 1).setValue('Closed');
+              bidSheet.getRange(j + 1, bOutcomeIdx + 1).setValue('Awarded');
+              bidSheet.getRange(j + 1, bClosedIdx  + 1).setValue(now);
+              bidSheet.getRange(j + 1, bModIdx     + 1).setValue(now);
+              _logRaw(user, 'CLOSE', 'BidOpportunity', bidData[j][bh.indexOf('BidID')], 'Auto-closed via LOI award');
+              break;
+            }
+          }
+        }
+      }
+
+      _cacheClear();
       return { success: true };
     }
   }
@@ -258,10 +288,39 @@ function revokeAward(token, loiId, otp) {
   const idIdx    = h.indexOf('LOIID');
   const statusIdx = h.indexOf('Status');
   if (statusIdx === -1) throw new Error('Status column not found.');
+  const titleIdx = h.indexOf('BidTitle');
   for (let i = 1; i < data.length; i++) {
     if (data[i][idIdx] === loiId) {
       sheet.getRange(i + 1, statusIdx + 1).setValue('');
       _logRaw(user, 'UPDATE', 'LOI', loiId, 'Award revoked (OTP-verified)');
+
+      // Also revert the linked bid back to Published
+      if (titleIdx !== -1) {
+        const bidTitle = data[i][titleIdx];
+        if (bidTitle) {
+          const bidSheet = getSheet(SH.BIDS);
+          const bidData  = bidSheet.getDataRange().getValues();
+          const bh       = bidData[0];
+          const bTitleIdx  = bh.indexOf('Title');
+          const bStatusIdx = bh.indexOf('Status');
+          const bOutcomeIdx = bh.indexOf('Outcome');
+          const bClosedIdx  = bh.indexOf('ClosedOn');
+          const bModIdx     = bh.indexOf('LastModified');
+          for (let j = 1; j < bidData.length; j++) {
+            if (bidData[j][bTitleIdx] === bidTitle && bidData[j][bStatusIdx] === 'Closed' && bidData[j][bOutcomeIdx] === 'Awarded') {
+              const now = new Date().toISOString();
+              bidSheet.getRange(j + 1, bStatusIdx  + 1).setValue('Published');
+              bidSheet.getRange(j + 1, bOutcomeIdx + 1).setValue('');
+              bidSheet.getRange(j + 1, bClosedIdx  + 1).setValue('');
+              bidSheet.getRange(j + 1, bModIdx     + 1).setValue(now);
+              _logRaw(user, 'UPDATE', 'BidOpportunity', bidData[j][bh.indexOf('BidID')], 'Bid reverted to Published via award revocation');
+              break;
+            }
+          }
+        }
+      }
+
+      _cacheClear();
       return { success: true };
     }
   }
