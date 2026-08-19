@@ -1310,22 +1310,54 @@ function renderDashboard(s) {
   const tiles = [
     ['Total Bid Opportunities', s.totalBids],
     ['Published', s.publishedCount],
-    ['% Published Within 1 Business Day', s.pctWithin1BusinessDay + '%'],
-    ['Avg. Approval → Publish (hrs)', s.avgApprovalToPublishHours],
     ['Accredited Vendors', s.approvedVendors],
     ['Pending Vendor Applications', s.pendingVendors],
     ['Total Inquiries', s.totalInquiries],
     ['Open Inquiries', s.openInquiries],
   ];
-  el.innerHTML = `<div class="stat-grid">` +
-    tiles.map(([label, num]) => `<div class="stat-tile"><div class="num">${num}</div><div class="label">${label}</div></div>`).join('') +
-    `</div>
-    <div class="card">
-      <h4>Bid Opportunities by Status</h4>
-      <table><tbody>` +
-      Object.keys(s.byStatus).map(k => `<tr><td>${escapeHtml(k)}</td><td>${s.byStatus[k]}</td></tr>`).join('') +
-      `</tbody></table>
+  el.innerHTML = `
+    <div class="stat-grid">${tiles.map(([label, num]) => `<div class="stat-tile"><div class="num">${num}</div><div class="label">${label}</div></div>`).join('')}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px;flex-wrap:wrap;">
+      <div class="card" style="min-width:200px;">
+        <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">Bids by Status</h4>
+        <canvas id="chart-bid-status"></canvas>
+      </div>
+      <div class="card" style="min-width:200px;">
+        <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">Vendor Accreditation</h4>
+        <canvas id="chart-vendor-status"></canvas>
+      </div>
+      <div class="card" style="min-width:200px;">
+        <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">Inquiries</h4>
+        <canvas id="chart-inquiries"></canvas>
+      </div>
     </div>`;
+
+  const chartDefaults = { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } } }, cutout: '62%', responsive: true };
+
+  // Bid status pie
+  const statusColors = { Draft: '#9ca3af', PendingApproval: '#3b82f6', Approved: '#10b981', Published: '#1A3A5C', Closed: '#6b7280' };
+  const statusLabels = Object.keys(s.byStatus);
+  new Chart(document.getElementById('chart-bid-status'), {
+    type: 'doughnut',
+    data: { labels: statusLabels, datasets: [{ data: statusLabels.map(k => s.byStatus[k]), backgroundColor: statusLabels.map(k => statusColors[k] || '#C8A951'), borderWidth: 2, borderColor: '#fff' }] },
+    options: chartDefaults,
+  });
+
+  // Vendor accreditation pie
+  const otherVendors = Math.max(0, (s.totalVendors || 0) - s.approvedVendors - s.pendingVendors);
+  new Chart(document.getElementById('chart-vendor-status'), {
+    type: 'doughnut',
+    data: { labels: ['Approved', 'Pending', 'Others'], datasets: [{ data: [s.approvedVendors, s.pendingVendors, otherVendors], backgroundColor: ['#27AE60', '#C8A951', '#9ca3af'], borderWidth: 2, borderColor: '#fff' }] },
+    options: chartDefaults,
+  });
+
+  // Inquiries pie
+  const answered = (s.totalInquiries || 0) - (s.openInquiries || 0);
+  new Chart(document.getElementById('chart-inquiries'), {
+    type: 'doughnut',
+    data: { labels: ['Answered', 'Open'], datasets: [{ data: [answered, s.openInquiries], backgroundColor: ['#1A3A5C', '#C8A951'], borderWidth: 2, borderColor: '#fff' }] },
+    options: chartDefaults,
+  });
 }
 
 // ── STAFF: USERS MANAGEMENT (cpd_admin only) ─────────────────────
