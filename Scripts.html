@@ -430,7 +430,7 @@ function applyPublicFilter() {
       <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
       <div class="bli-body">
         <div class="bli-title">${escapeHtml(b.title)}</div>
-        <div class="bli-meta">📅 Deadline: ${fmtDate(b.submissionDeadline)}</div>
+        <div class="bli-meta">${escapeHtml(b.description || '—')}</div>
       </div>
       <div class="bli-arrow">›</div>
     </div>`).join('');
