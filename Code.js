@@ -1184,7 +1184,10 @@ function getMyBids(token, statusFilter) {
     if (!isCPD(user)) bids = bids.filter(b => b.CreatedBy === user.email);
     if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
     bids.sort((a, b) => (new Date(b.CreatedOn).getTime() || 0) - (new Date(a.CreatedOn).getTime() || 0));
-    return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}) })) };
+    const submissions = sheetToObjects(getSheet(SH.SUBMISSIONS));
+    const countMap = {};
+    submissions.forEach(s => { countMap[s.BidID] = (countMap[s.BidID] || 0) + 1; });
+    return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}), submissionCount: countMap[b.BidID] || 0 })) };
   } catch (err) {
     console.error('getMyBids failed: ' + err.message + '\n' + err.stack);
     throw new Error('getMyBids: ' + err.message);
