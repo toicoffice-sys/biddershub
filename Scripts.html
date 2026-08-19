@@ -85,30 +85,29 @@ function fileToBase64(file) {
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
-  try {
-    CATEGORIES = await gsRun('getCategories');
-    populateCategorySelects();
-  } catch (e) { console.error(e); }
-  try {
-    DOCUMENT_TYPES = await gsRun('getDocumentTypes');
-  } catch (e) { console.error(e); }
-  try {
-    BID_DOCUMENT_TYPES = await gsRun('getBidDocumentTypes');
-  } catch (e) { console.error(e); }
-  try {
-    BID_SUBMISSION_DOCUMENT_TYPES = await gsRun('getBidSubmissionDocumentTypes');
-  } catch (e) { console.error(e); }
-
   const savedToken = localStorage.getItem('bh_token');
-  if (savedToken) {
-    try {
-      const boot = await gsRun('getBootData', savedToken);
-      SESSION.token = savedToken;
-      SESSION.user = boot.user;
-      window._boot = boot;
-    } catch (e) {
-      localStorage.removeItem('bh_token');
+  try {
+    const data = await gsRun('getInitData', savedToken || '');
+    CATEGORIES                   = data.categories || [];
+    DOCUMENT_TYPES               = data.documentTypes || [];
+    BID_DOCUMENT_TYPES           = data.bidDocumentTypes || [];
+    BID_SUBMISSION_DOCUMENT_TYPES = data.bidSubmissionDocumentTypes || [];
+    populateCategorySelects();
+
+    if (savedToken) {
+      if (data.boot) {
+        SESSION.token = savedToken;
+        SESSION.user  = data.boot.user;
+        window._boot  = data.boot;
+      } else {
+        localStorage.removeItem('bh_token'); // expired/invalid
+      }
+    } else if (data.publicBids) {
+      PUBLIC_BIDS = data.publicBids; // pre-loaded — no second round-trip needed
     }
+  } catch (e) {
+    console.error('init failed:', e);
+    if (savedToken) localStorage.removeItem('bh_token');
   }
   renderNav();
   routeToView();
@@ -404,10 +403,11 @@ async function submitLOIForm(btn) {
 // ── PUBLIC BID BOARD ─────────────────────────────────────────
 async function loadPublicBoard() {
   try {
-    const bids = await gsRun('getPublicBidBoard', {});
-    PUBLIC_BIDS = bids;
+    if (!PUBLIC_BIDS.length) {
+      PUBLIC_BIDS = await gsRun('getPublicBidBoard', {});
+    }
     PUBLIC_FILTER = null;
-    renderPublicHeroStats(bids);
+    renderPublicHeroStats(PUBLIC_BIDS);
   } catch (e) { console.error('Failed to load bid opportunities.', e); }
 }
 

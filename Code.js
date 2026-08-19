@@ -81,6 +81,8 @@ const SESSION_TTL_MS  = 8 * 60 * 60 * 1000; // 8 hours
 const APP_TOKEN_TTL_MS = 60 * 60 * 1000;    // 1 hour to finish an accreditation application after verifying email
 const CACHE_TTL_S    = 300;                 // 5 min
 const CACHE_BIDS     = 'cache_bids_v1';
+const CACHE_CONFIG   = 'init_config_v1';
+const CACHE_LOI_MAP  = 'loi_count_v1';
 
 // ── PROPERTIES SERVICE SCHEMA (for audit reference) ───────────
 // ScriptProperties keys managed by this application:
@@ -108,6 +110,40 @@ function include(filename) {
 function getCategories() { return CATEGORIES; }
 
 /** Returns all Letters of Intent — staff only. */
+/**
+ * Single bootstrap call — replaces the 5 sequential init round-trips.
+ * Returns static config (categories, doc types), optional boot data for
+ * authenticated users, and pre-loaded public bids for unauthenticated visitors.
+ */
+function getInitData(token) {
+  // Static config — cached for 1 hour (changes only when sheet data changes)
+  let config = _cacheGet(CACHE_CONFIG);
+  if (!config) {
+    config = {
+      categories: CATEGORIES,
+      documentTypes: DOCUMENT_TYPES,
+      bidDocumentTypes: BID_DOCUMENT_TYPES,
+      bidSubmissionDocumentTypes: BID_SUBMISSION_DOCUMENT_TYPES,
+    };
+    _cacheSet(CACHE_CONFIG, config, 3600);
+  }
+
+  const result = { success: true, ...config };
+
+  if (token) {
+    try {
+      result.boot = getBootData(token);
+    } catch (e) {
+      result.boot = null; // expired/invalid — caller should clear token
+    }
+  } else {
+    // Pre-load public bids so the homepage renders without a second round-trip
+    result.publicBids = getPublicBidBoard({});
+  }
+
+  return result;
+}
+
 function _migrateLOIHeaders(sheet) {
   if (sheet.getLastRow() === 0) return;
   const ncols = sheet.getLastColumn();
@@ -244,7 +280,7 @@ function _cacheSet(key, value, ttl) {
 }
 
 function _cacheClear() {
-  try { CacheService.getScriptCache().removeAll([CACHE_BIDS]); } catch (e) { console.error('cache clear failed:', e); }
+  try { CacheService.getScriptCache().removeAll([CACHE_BIDS, CACHE_LOI_MAP]); } catch (e) { console.error('cache clear failed:', e); }
 }
 
 // ── SESSION MANAGEMENT ─────────────────────────────────────────
@@ -719,6 +755,7 @@ function submitLetterOfIntent(data) {
 
   const now = new Date().toISOString();
   sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, bidTitle, now]);
+  _cacheClear(); // invalidate LOI count cache
 
   const ACCREDITATION_URL = 'https://vendorshub.dlsl.edu.ph/UniversofVendor/';
 
@@ -1220,12 +1257,15 @@ function getMyBids(token, statusFilter) {
     if (!isCPD(user)) bids = bids.filter(b => b.CreatedBy === user.email);
     if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
     bids.sort((a, b) => (new Date(b.CreatedOn).getTime() || 0) - (new Date(a.CreatedOn).getTime() || 0));
-    const lois = sheetToObjects(getSheet(SH.LOI));
-    const loiCountMap = {};
-    lois.forEach(r => {
-      const title = (r.BidTitle || '').trim();
-      if (title) loiCountMap[title] = (loiCountMap[title] || 0) + 1;
-    });
+    let loiCountMap = _cacheGet(CACHE_LOI_MAP);
+    if (!loiCountMap) {
+      loiCountMap = {};
+      sheetToObjects(getSheet(SH.LOI)).forEach(r => {
+        const title = (r.BidTitle || '').trim();
+        if (title) loiCountMap[title] = (loiCountMap[title] || 0) + 1;
+      });
+      _cacheSet(CACHE_LOI_MAP, loiCountMap, 120); // 2-min TTL
+    }
     return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}), submissionCount: loiCountMap[(b.Title || '').trim()] || 0 })) };
   } catch (err) {
     console.error('getMyBids failed: ' + err.message + '\n' + err.stack);
