@@ -456,6 +456,13 @@
     <div class="field"><label>Category</label><select id="editor-category"><option value="">— Select category —</option></select></div>
     <div class="field"><label>Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
     <div class="field"><label>Description</label><textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4"></textarea></div>
+    <div class="field" id="editor-submission-status-row" style="display:none;">
+      <label>Bid Status</label>
+      <select id="editor-submission-status">
+        <option value="open">Open — Accepting Submissions</option>
+        <option value="closed">Closed — No Longer Accepting</option>
+      </select>
+    </div>
     <div id="bid-editor-error" class="error-text"></div>
     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
       <button class="btn btn-outline" onclick="previewBidEditor()">👁 Preview</button>

@@ -533,7 +533,7 @@ async function loadPublicBoard() {
 }
 
 function renderPublicHeroStats(bids) {
-  const published = bids.filter(b => b.status === 'Published').length;
+  const published = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && !b.outcome)).length;
   const awarded   = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
   document.getElementById('pub-tab-bar').innerHTML = `
     <div class="pub-tab-card" id="stat-open" onclick="togglePublicFilter('open')">
@@ -563,7 +563,7 @@ function applyPublicFilter() {
 
   let filtered, emptyMsg;
   if (PUBLIC_FILTER === 'open') {
-    filtered = PUBLIC_BIDS.filter(b => b.status === 'Published');
+    filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && !b.outcome));
     emptyMsg = 'No open bid opportunities at this time.';
   } else {
     filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
@@ -578,17 +578,23 @@ function applyPublicFilter() {
   const page  = filtered.slice(start, start + PUBLIC_PAGE_SIZE);
 
   const listHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">` +
-    page.map(b => `
-    <div class="bid-list-item" style="margin-bottom:0;" onclick="openBidDetail('${b.bidId}')">
+    page.map(b => {
+      const isClosed = b.status === 'Closed' && !b.outcome;
+      const isAwarded = b.status === 'Closed' && b.outcome === 'Awarded';
+      return `
+    <div class="bid-list-item" style="margin-bottom:0;${isClosed ? 'opacity:.85;' : ''}" onclick="openBidDetail('${b.bidId}')">
       <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
-      <div class="bli-body">
+      <div class="bli-body" style="position:relative;">
         <div class="bli-title">${escapeHtml(b.title)}</div>
-        ${PUBLIC_FILTER === 'awarded' && b.winner
-          ? `<div class="bli-meta" style="color:#166534;font-weight:600;">🏆 ${escapeHtml(b.winner)}</div>`
-          : `<div class="bli-meta">${escapeHtml(b.description || '—')}</div>`}
+        ${isClosed
+          ? `<div style="display:inline-block;margin-top:5px;padding:3px 10px;background:#dc2626;color:#fff;border-radius:4px;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;">BID CLOSED</div>`
+          : isAwarded
+            ? `<div class="bli-meta" style="color:#166534;font-weight:600;">🏆 ${escapeHtml(b.winner)}</div>`
+            : `<div class="bli-meta">${escapeHtml(b.description || '—')}</div>`}
       </div>
       <div class="bli-arrow">›</div>
-    </div>`).join('') + `</div>`;
+    </div>`;
+    }).join('') + `</div>`;
 
   const pagerHtml = totalPages > 1 ? `
     <div class="pub-pager">
@@ -1211,6 +1217,16 @@ function openBidEditor(bidId) {
       document.getElementById('editor-description').value = b.Description || '';
       document.getElementById('editor-bid-status').value = b.Status || '';
       toggleBtn.textContent = b.Status === 'Published' ? 'Unpublish' : 'Publish';
+      // Show Bid Status selector only for Published/Closed bids
+      const statusRow = document.getElementById('editor-submission-status-row');
+      const statusSel = document.getElementById('editor-submission-status');
+      if (['Published', 'Closed'].includes(b.Status) && b.outcome !== 'Awarded') {
+        statusRow.style.display = '';
+        statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
+      } else {
+        statusRow.style.display = 'none';
+        statusSel.value = 'open';
+      }
     });
   } else {
     ['editor-title', 'editor-deadline', 'editor-description'].forEach(id => document.getElementById(id).value = '');
@@ -1272,9 +1288,23 @@ async function saveBidEditor(action) {
     else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
     if (action === 'publish') await gsRun('publishBid', SESSION.token, id);
     else if (action === 'unpublish') await gsRun('unpublishBid', SESSION.token, id);
+    else {
+      // Handle Bid Status toggle (Open ↔ Closed) for Published/Closed bids
+      const statusRow = document.getElementById('editor-submission-status-row');
+      if (statusRow && statusRow.style.display !== 'none') {
+        const selectedStatus = document.getElementById('editor-submission-status').value;
+        const currentStatus  = document.getElementById('editor-bid-status').value;
+        if (selectedStatus === 'closed' && currentStatus !== 'Closed') {
+          await gsRun('setBidSubmissionStatus', SESSION.token, id, true);
+        } else if (selectedStatus === 'open' && currentStatus === 'Closed') {
+          await gsRun('setBidSubmissionStatus', SESSION.token, id, false);
+        }
+      }
+    }
     closeModal('modal-bid-editor');
     toast('Bid opportunity saved.', 'success');
     loadMyBids();
+    PUBLIC_BIDS = []; loadPublicBoard();
   } catch (e) { errEl.textContent = e.message || 'Failed to save bid opportunity.'; }
 }
 

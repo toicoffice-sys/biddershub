@@ -1348,6 +1348,35 @@ function closeBid(token, bidId, outcome) {
   return { success: true };
 }
 
+/** Toggle bid submission status: Open (Published) ↔ Closed (no award). */
+function setBidSubmissionStatus(token, bidId, closed) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const found = _getBidRow(bidId);
+  if (!found) throw new Error('Bid opportunity not found.');
+  const { sheet, rowIndex, obj } = found;
+  const now = new Date().toISOString();
+  if (closed) {
+    if (!['Published', 'Closed'].includes(obj.Status)) throw new Error('Bid must be Published to close submissions.');
+    if (obj.Outcome === 'Awarded') throw new Error('Cannot manually close an already-awarded bid.');
+    obj.Status   = 'Closed';
+    obj.Outcome  = '';
+    obj.ClosedOn = now;
+    obj.LastModified = now;
+    _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Submissions closed (no award)');
+  } else {
+    if (obj.Status !== 'Closed' || obj.Outcome === 'Awarded') throw new Error('Cannot reopen this bid.');
+    obj.Status   = 'Published';
+    obj.Outcome  = '';
+    obj.ClosedOn = '';
+    obj.LastModified = now;
+    _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Submissions reopened to Published');
+  }
+  _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
+  _cacheClear();
+  return { success: true };
+}
+
 /** Public bid board — no login required. */
 function getPublicBidBoard(filters) {
   filters = filters || {};
