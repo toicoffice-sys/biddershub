@@ -1351,19 +1351,43 @@ function closeBid(token, bidId, outcome) {
 /** Public bid board — no login required. */
 function getPublicBidBoard(filters) {
   filters = filters || {};
-  let bids = _cacheGet(CACHE_BIDS);
-  if (!bids) {
-    bids = sheetToObjects(getSheet(SH.BIDS)).filter(b => ['Published', 'Closed'].includes(b.Status));
-    _cacheSet(CACHE_BIDS, bids);
+  let views = _cacheGet(CACHE_BIDS);
+  if (!views) {
+    const rawBids = sheetToObjects(getSheet(SH.BIDS))
+      .filter(b => ['Published', 'Closed'].includes(b.Status));
+
+    // Build awarded LOI map: normalized title → winner company name
+    // This is the authoritative source — a bid is "Awarded" if ANY of its LOIs are Awarded
+    const awardedMap = {};
+    try {
+      sheetToObjects(getSheet(SH.LOI)).forEach(function(l) {
+        if ((l.Status || '').trim() === 'Awarded' && l.BidTitle) {
+          awardedMap[(l.BidTitle || '').trim().toLowerCase()] = (l.CompanyName || '').trim();
+        }
+      });
+    } catch (e) { console.error('LOI join error:', e); }
+
+    views = rawBids.map(function(b) {
+      var view = _publicBidView(b);
+      var key  = (b.Title || '').trim().toLowerCase();
+      if (awardedMap[key]) {
+        view.status  = 'Closed';
+        view.outcome = 'Awarded';
+        view.winner  = awardedMap[key];
+      }
+      return view;
+    });
+    views.sort(function(a, b) { return new Date(b.publishedOn || 0) - new Date(a.publishedOn || 0); });
+    _cacheSet(CACHE_BIDS, views);
   }
-  let out = bids.slice();
-  if (filters.category) out = out.filter(b => b.Category === filters.category);
+
+  var out = views.slice();
+  if (filters.category) out = out.filter(function(b) { return b.category === filters.category; });
   if (filters.q) {
-    const q = filters.q.toLowerCase();
-    out = out.filter(b => (b.Title || '').toLowerCase().includes(q) || (b.Description || '').toLowerCase().includes(q));
+    var q = filters.q.toLowerCase();
+    out = out.filter(function(b) { return (b.title || '').toLowerCase().includes(q) || (b.description || '').toLowerCase().includes(q); });
   }
-  out.sort((a, b) => new Date(b.PublishedOn || 0) - new Date(a.PublishedOn || 0));
-  return out.map(_publicBidView);
+  return out;
 }
 
 /** Public single bid view — no login required. */
