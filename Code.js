@@ -203,6 +203,26 @@ function awardLOI(token, loiId) {
   throw new Error('Submission not found.');
 }
 
+function revokeAward(token, loiId) {
+  const user = requireAuth(token);
+  if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+  const sheet = getSheet(SH.LOI);
+  _migrateLOIHeaders(sheet);
+  const data = sheet.getDataRange().getValues();
+  const h = data[0];
+  const idIdx = h.indexOf('LOIID');
+  const statusIdx = h.indexOf('Status');
+  if (statusIdx === -1) throw new Error('Status column not found.');
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idIdx] === loiId) {
+      sheet.getRange(i + 1, statusIdx + 1).setValue('');
+      _logRaw(user, 'UPDATE', 'LOI', loiId, 'Award revoked for LOI submission');
+      return { success: true };
+    }
+  }
+  throw new Error('Submission not found.');
+}
+
 // ── SPREADSHEET HELPERS ────────────────────────────────────────
 function _ss() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
 
