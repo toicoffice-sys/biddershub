@@ -108,10 +108,24 @@ function include(filename) {
 function getCategories() { return CATEGORIES; }
 
 /** Returns all Letters of Intent — staff only. */
+function _migrateLOIHeaders(sheet) {
+  if (sheet.getLastRow() === 0) return;
+  const ncols = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, ncols).getValues()[0];
+  // If BidTitle is missing but SubmittedOn exists, the header is one column behind the data.
+  // Col6 says 'SubmittedOn' but data rows store bidTitle there; actual date is in col7 with no header.
+  if (!headers.includes('BidTitle') && headers.includes('SubmittedOn')) {
+    const soPos = headers.indexOf('SubmittedOn') + 1; // 1-based
+    sheet.getRange(1, soPos).setValue('BidTitle');
+    sheet.getRange(1, soPos + 1).setValue('SubmittedOn');
+  }
+}
+
 function getLettersOfIntent(token) {
   const user = requireAuth(token);
   if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
   const sheet = getSheet(SH.LOI);
+  _migrateLOIHeaders(sheet);
   if (sheet.getLastRow() < 2) return { success: true, lois: [] };
   const data = sheet.getDataRange().getValues();
   const h = data[0];
@@ -676,6 +690,7 @@ function submitLetterOfIntent(data) {
 
   const sheet = getSheet(SH.LOI);
   if (sheet.getLastRow() === 0) { sheet.appendRow(LOI_HEADERS); _fmtHeader(sheet, '#1B5E20', LOI_HEADERS.length); }
+  else { _migrateLOIHeaders(sheet); }
 
   const now = new Date().toISOString();
   sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, bidTitle, now]);
