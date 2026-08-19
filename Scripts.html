@@ -13,6 +13,8 @@ let SUBMISSION_DOCS = {};
 let CURRENT_BID_ID = null;
 let PUBLIC_BIDS = [];
 let PUBLIC_FILTER = null; // null = all, 'open' = Published, 'awarded' = Closed+Awarded
+let PUBLIC_PAGE  = 1;
+const PUBLIC_PAGE_SIZE = 10;
 
 // ── GOOGLE.SCRIPT.RUN PROMISE WRAPPER ───────────────────────────
 function gsRun(fnName, ...args) {
@@ -59,7 +61,7 @@ function stampClass(s) {
   return map[s] || 'stamp-grey';
 }
 function roleLabel(role) {
-  return { cpd_admin: 'CPD Administrator', cpd_officer: 'CPD Officer', proponent: 'Proponent', vendor: 'Vendor' }[role] || role;
+  return { cpd_admin: 'Administrator', cpd_officer: 'Officer', proponent: 'Proponent', vendor: 'Vendor' }[role] || role;
 }
 function toast(msg, type) {
   const el = document.createElement('div');
@@ -97,7 +99,7 @@ async function init() {
     BID_SUBMISSION_DOCUMENT_TYPES = await gsRun('getBidSubmissionDocumentTypes');
   } catch (e) { console.error(e); }
 
-  const savedToken = sessionStorage.getItem('bh_token');
+  const savedToken = localStorage.getItem('bh_token');
   if (savedToken) {
     try {
       const boot = await gsRun('getBootData', savedToken);
@@ -105,7 +107,7 @@ async function init() {
       SESSION.user = boot.user;
       window._boot = boot;
     } catch (e) {
-      sessionStorage.removeItem('bh_token');
+      localStorage.removeItem('bh_token');
     }
   }
   renderNav();
@@ -127,13 +129,16 @@ function populateCategorySelects() {
 
 function renderNav() {
   const actions = document.getElementById('nav-actions');
+  const btnSA = document.getElementById('btn-staff-access');
   if (!SESSION.token) {
     actions.innerHTML = '';
+    if (btnSA) btnSA.onclick = function() { openModal('modal-login'); };
   } else {
     const u = SESSION.user;
     actions.innerHTML = `
       <span class="who">${escapeHtml(u.fullName || u.email)} · ${roleLabel(u.role)}</span>
       <button class="btn btn-ghost btn-sm" onclick="doLogout()">Logout</button>`;
+    if (btnSA) btnSA.onclick = function() { routeToView(); };
   }
 }
 
@@ -156,7 +161,20 @@ function routeToView() {
   } else {
     document.getElementById('view-staff').classList.remove('hidden');
     configureStaffTabsForRole(SESSION.user.role);
+    const u = SESSION.user;
+    document.getElementById('admin-user-chip').innerHTML =
+      `<div class="admin-chip">
+         <span class="admin-chip-name">${escapeHtml(u.fullName || u.email)}</span>
+         <span class="admin-chip-role">${escapeHtml(roleLabel(u.role))}</span>
+       </div>`;
   }
+}
+
+function goHome() {
+  ['view-vendor','view-staff','view-help'].forEach(id => document.getElementById(id).classList.add('hidden'));
+  document.getElementById('view-public').classList.remove('hidden');
+  document.getElementById('public-hero').classList.remove('hidden');
+  loadPublicBoard();
 }
 
 function showHelp() {
@@ -175,7 +193,7 @@ function switchHelpTab(tabId) {
 
 async function doLogout() {
   try { await gsRun('logout', SESSION.token); } catch (e) { /* ignore */ }
-  sessionStorage.removeItem('bh_token');
+  localStorage.removeItem('bh_token');
   SESSION = { token: null, user: null };
   renderNav();
   routeToView();
@@ -212,6 +230,7 @@ function loadTabData(scope, tabId) {
     if (tabId === 'v-inquiries') return loadMyInquiries();
   } else {
     if (tabId === 's-mybids') return loadMyBids();
+    if (tabId === 's-loi') return loadLOI();
     if (tabId === 's-approvals') return loadApprovals();
     if (tabId === 's-vendors') return loadVendorApplications();
     if (tabId === 's-inquiries') return loadInquiriesForReview();
@@ -219,6 +238,111 @@ function loadTabData(scope, tabId) {
     if (tabId === 's-users') return loadUsers();
     if (tabId === 's-audit') return loadAuditLog();
   }
+}
+
+// ── STAFF: LETTERS OF INTENT ─────────────────────────────────
+let LOI_CACHE = [];
+let LOI_PAGE  = 1;
+const LOI_PAGE_SIZE = 10;
+
+async function loadLOI() {
+  const el = document.getElementById('staff-loi-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('getLettersOfIntent', SESSION.token);
+    LOI_CACHE = res.lois;
+    LOI_PAGE  = 1;
+    renderLOITable();
+  } catch (e) { el.innerHTML = '<p class="error-text">Failed to load submissions. ' + escapeHtml(e.message || String(e)) + '</p>'; }
+}
+
+function renderLOITable() {
+  const el = document.getElementById('staff-loi-table');
+  if (!LOI_CACHE.length) { el.innerHTML = '<div class="empty-state">No letters of intent submitted yet.</div>'; return; }
+  const total = LOI_CACHE.length;
+  const totalPages = Math.ceil(total / LOI_PAGE_SIZE);
+  LOI_PAGE = Math.min(Math.max(LOI_PAGE, 1), totalPages);
+  const start = (LOI_PAGE - 1) * LOI_PAGE_SIZE;
+  const page  = LOI_CACHE.slice(start, start + LOI_PAGE_SIZE);
+
+  const tableHtml = `<table>
+    <thead><tr>
+      <th>#</th><th>Company</th><th>Contact Person</th><th>Email</th><th>Contact No.</th><th>Subject</th><th>Submitted</th><th></th>
+    </tr></thead>
+    <tbody>${page.map((r, i) => {
+      const subject = r.bidTitle ? r.bidTitle + ' — ' + r.companyName : 'BiddersHub — New Letter of Intent: ' + r.companyName;
+      return `<tr>
+      <td style="color:var(--ink-faint);font-size:12px;">${start + i + 1}</td>
+      <td style="font-weight:600;">${escapeHtml(r.companyName)}</td>
+      <td>${escapeHtml(r.contactPerson)}</td>
+      <td><a href="mailto:${escapeHtml(r.contactEmail)}" style="color:var(--g600);">${escapeHtml(r.contactEmail)}</a></td>
+      <td>${escapeHtml(r.contactNumber)}</td>
+      <td style="font-size:12px;color:var(--ink-soft);">${escapeHtml(subject)}</td>
+      <td style="white-space:nowrap;">${fmtDate(r.submittedOn)}</td>
+      <td><button class="btn btn-sm btn-outline" data-email="${escapeHtml(r.contactEmail)}" data-company="${escapeHtml(r.companyName)}" onclick="openLOIEmail(this.dataset.email,this.dataset.company)">Send Email</button></td>
+    </tr>`;}).join('')}</tbody>
+  </table>`;
+
+  const pagerHtml = totalPages > 1 ? `
+    <div class="pub-pager" style="margin-top:16px;">
+      <button class="pub-pager-btn" onclick="loiGoPage(${LOI_PAGE - 1})" ${LOI_PAGE === 1 ? 'disabled' : ''}>‹ Prev</button>
+      <span class="pub-pager-info">Page ${LOI_PAGE} of ${totalPages} &nbsp;·&nbsp; ${total} submission${total !== 1 ? 's' : ''}</span>
+      <button class="pub-pager-btn" onclick="loiGoPage(${LOI_PAGE + 1})" ${LOI_PAGE === totalPages ? 'disabled' : ''}>Next ›</button>
+    </div>` : `<p class="hint" style="margin-top:12px;text-align:right;">${total} submission${total !== 1 ? 's' : ''}</p>`;
+
+  el.innerHTML = tableHtml + pagerHtml;
+}
+
+function loiGoPage(page) { LOI_PAGE = page; renderLOITable(); }
+
+async function submitBidLOI(btn) {
+  const errEl   = document.getElementById('bid-loi-error');
+  const company = document.getElementById('bid-loi-company').value.trim();
+  const person  = document.getElementById('bid-loi-person').value.trim();
+  const email   = document.getElementById('bid-loi-email').value.trim();
+  const number  = document.getElementById('bid-loi-number').value.trim();
+  const bidTitle = document.getElementById('bid-loi-title').value;
+  errEl.textContent = '';
+  if (!company) { errEl.textContent = 'Company name is required.'; return; }
+  if (!person)  { errEl.textContent = 'Contact person is required.'; return; }
+  if (!email)   { errEl.textContent = 'Contact email is required.'; return; }
+  if (!number)  { errEl.textContent = 'Contact number is required.'; return; }
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    await gsRun('submitLetterOfIntent', { companyName: company, contactPerson: person, contactEmail: email, contactNumber: number, bidTitle });
+    toast('Letter of Intent submitted successfully.', 'success');
+    ['bid-loi-company','bid-loi-person','bid-loi-email','bid-loi-number'].forEach(id => document.getElementById(id).value = '');
+    btn.textContent = 'Submitted ✓';
+    return;
+  } catch (e) { errEl.textContent = e.message || 'Submission failed. Please try again.'; }
+  btn.disabled = false; btn.textContent = 'Submit Letter of Intent';
+}
+
+function openLOIEmail(email, company) {
+  document.getElementById('loi-email-to').value = email;
+  document.getElementById('loi-email-subject').value = 'Re: Letter of Intent — ' + company;
+  document.getElementById('loi-email-body').value = '';
+  document.getElementById('loi-email-error').textContent = '';
+  openModal('modal-loi-email');
+}
+
+async function sendLOIEmail(btn) {
+  const errEl   = document.getElementById('loi-email-error');
+  const to      = document.getElementById('loi-email-to').value.trim();
+  const subject = document.getElementById('loi-email-subject').value.trim();
+  const body    = document.getElementById('loi-email-body').value.trim();
+  errEl.textContent = '';
+  if (!subject) { errEl.textContent = 'Subject is required.'; return; }
+  if (!body)    { errEl.textContent = 'Message body is required.'; return; }
+  btn.disabled = true; btn.textContent = 'Sending…';
+  try {
+    await gsRun('sendEmailToVendor', SESSION.token, to, subject, body);
+    toast('Email sent to ' + to, 'success');
+    closeModal('modal-loi-email');
+  } catch (e) {
+    errEl.textContent = e.message || 'Failed to send email.';
+  }
+  btn.disabled = false; btn.textContent = 'Send Email';
 }
 
 // ── LETTER OF INTENT ─────────────────────────────────────────
@@ -253,79 +377,78 @@ async function loadPublicBoard() {
     PUBLIC_BIDS = bids;
     PUBLIC_FILTER = null;
     renderPublicHeroStats(bids);
-    document.getElementById('hero-results-panel').classList.add('hidden');
   } catch (e) { console.error('Failed to load bid opportunities.', e); }
 }
 
 function renderPublicHeroStats(bids) {
   const published = bids.filter(b => b.status === 'Published').length;
-  const awarded = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
-  document.getElementById('public-hero-stats').innerHTML = `
-    <div class="register-item register-item-btn" id="stat-open" onclick="togglePublicFilter('open')" title="View open bid opportunities">
-      <div class="stat-icon"><span class="stat-dot" style="background:#4ade80;"></span> Open</div>
-      <div class="num">${published}</div>
-      <div class="label">Open Opportunities</div>
-      <div class="stat-hint">Click to view listings ↓</div>
+  const awarded   = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
+  document.getElementById('pub-tab-bar').innerHTML = `
+    <div class="pub-tab-card" id="stat-open" onclick="togglePublicFilter('open')">
+      Open Opportunities <span class="ptc-count">${published}</span>
     </div>
-    <div class="register-item register-item-btn" id="stat-awarded" onclick="togglePublicFilter('awarded')" title="View awarded bids">
-      <div class="stat-icon"><span class="stat-dot" style="background:#fbbf24;"></span> Awarded</div>
-      <div class="num">${awarded}</div>
-      <div class="label">Awarded Bids</div>
-      <div class="stat-hint">Click to view listings ↓</div>
+    <div class="pub-tab-card" id="stat-awarded" onclick="togglePublicFilter('awarded')">
+      Awarded Bids <span class="ptc-count">${awarded}</span>
     </div>`;
+  togglePublicFilter('open');
 }
 
 function togglePublicFilter(type) {
-  PUBLIC_FILTER = PUBLIC_FILTER === type ? null : type;
+  if (PUBLIC_FILTER === type) { PUBLIC_FILTER = null; } else { PUBLIC_FILTER = type; PUBLIC_PAGE = 1; }
   applyPublicFilter();
 }
 
 function applyPublicFilter() {
-  // update active state on stat tabs
   ['open','awarded'].forEach(t => {
     const el = document.getElementById('stat-' + t);
-    if (el) el.classList.toggle('register-item-active', PUBLIC_FILTER === t);
+    if (el) el.classList.toggle('active', PUBLIC_FILTER === t);
   });
 
-  const panel = document.getElementById('hero-results-panel');
-  const list  = document.getElementById('hero-results-list');
-  const title = document.getElementById('hero-results-title');
+  const content = document.getElementById('pub-tab-content');
 
-  if (!PUBLIC_FILTER) {
-    panel.classList.add('hidden');
-    return;
-  }
+  if (!PUBLIC_FILTER) { content.classList.add('hidden'); return; }
+  content.classList.remove('hidden');
 
-  let filtered, label;
+  let filtered, emptyMsg;
   if (PUBLIC_FILTER === 'open') {
     filtered = PUBLIC_BIDS.filter(b => b.status === 'Published');
-    label = 'Open Opportunities — ' + filtered.length + ' bid' + (filtered.length !== 1 ? 's' : '');
+    emptyMsg = 'No open bid opportunities at this time.';
   } else {
     filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
-    label = 'Awarded Bids — ' + filtered.length + ' record' + (filtered.length !== 1 ? 's' : '');
+    emptyMsg = 'No awarded bids on record.';
   }
 
-  title.textContent = label;
+  if (!filtered.length) { content.innerHTML = `<div class="bid-list-empty">${emptyMsg}</div>`; return; }
 
-  if (!filtered.length) {
-    list.innerHTML = '<div class="bid-list-empty">No records found.</div>';
-  } else {
-    list.innerHTML = filtered.map(b => `
-      <div class="bid-list-item" onclick="openBidDetail('${b.bidId}')">
-        <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
-        <div class="bli-body">
-          <div class="bli-title">${escapeHtml(b.title)}</div>
-          <div class="bli-meta">
-            <span class="stamp ${stampClass(b.status)}" style="font-size:10px;padding:2px 7px;">${escapeHtml(b.status)}${b.outcome ? ' · ' + escapeHtml(b.outcome) : ''}</span>
-            &nbsp; 📅 Deadline: ${fmtDate(b.submissionDeadline)}
-          </div>
-        </div>
-        <div class="bli-arrow">›</div>
-      </div>`).join('');
-  }
+  const totalPages = Math.ceil(filtered.length / PUBLIC_PAGE_SIZE);
+  PUBLIC_PAGE = Math.min(Math.max(PUBLIC_PAGE, 1), totalPages);
+  const start = (PUBLIC_PAGE - 1) * PUBLIC_PAGE_SIZE;
+  const page  = filtered.slice(start, start + PUBLIC_PAGE_SIZE);
 
-  panel.classList.remove('hidden');
-  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const listHtml = page.map(b => `
+    <div class="bid-list-item" onclick="openBidDetail('${b.bidId}')">
+      <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
+      <div class="bli-body">
+        <div class="bli-title">${escapeHtml(b.title)}</div>
+        <div class="bli-meta">📅 Deadline: ${fmtDate(b.submissionDeadline)}</div>
+      </div>
+      <div class="bli-arrow">›</div>
+    </div>`).join('');
+
+  const pagerHtml = totalPages > 1 ? `
+    <div class="pub-pager">
+      <button class="pub-pager-btn" onclick="publicGoPage(${PUBLIC_PAGE - 1})" ${PUBLIC_PAGE === 1 ? 'disabled' : ''}>‹ Prev</button>
+      <span class="pub-pager-info">Page ${PUBLIC_PAGE} of ${totalPages} &nbsp;·&nbsp; ${filtered.length} record${filtered.length !== 1 ? 's' : ''}</span>
+      <button class="pub-pager-btn" onclick="publicGoPage(${PUBLIC_PAGE + 1})" ${PUBLIC_PAGE === totalPages ? 'disabled' : ''}>Next ›</button>
+    </div>` : '';
+
+  content.innerHTML = listHtml + pagerHtml;
+}
+
+function publicGoPage(page) {
+  PUBLIC_PAGE = page;
+  applyPublicFilter();
+  document.getElementById('pub-tab-content').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function renderBidGrid(container, bids, vendorMode) {
@@ -412,6 +535,29 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
     }
   } else if (!SESSION.token && bid.status === 'Published') {
     html += `<h4 style="margin-top:16px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+  }
+
+  // LOI inline form — visible to public and vendors, hidden for staff
+  const isStaff = SESSION.token && ['cpd_admin','cpd_officer','proponent'].includes(SESSION.user.role);
+  if (!isStaff && bid.status === 'Published') {
+    html += `
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
+        <h4 style="margin-bottom:4px;">Interested in this bid?</h4>
+        <p class="hint" style="margin-bottom:14px;">Fill in your details below and submit a Letter of Intent. Our procurement team will reach out to you.</p>
+        <input type="hidden" id="bid-loi-title" value="${escapeHtml(bid.title)}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div><label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="bid-loi-company" placeholder="e.g. ABC Trading Corp."></div>
+          <div><label class="field-label">Contact Person <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="bid-loi-person" placeholder="Full name"></div>
+          <div><label class="field-label">Email <span style="color:var(--danger)">*</span></label>
+            <input type="email" id="bid-loi-email" placeholder="your@email.com"></div>
+          <div><label class="field-label">Contact Number <span style="color:var(--danger)">*</span></label>
+            <input type="tel" id="bid-loi-number" placeholder="e.g. 09xx-xxx-xxxx"></div>
+        </div>
+        <p id="bid-loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
+        <button class="btn btn-primary" style="margin-top:4px;" onclick="submitBidLOI(this)">Submit Letter of Intent</button>
+      </div>`;
   }
 
   document.getElementById('bid-detail-content').innerHTML = html;
@@ -513,7 +659,7 @@ function resetLoginModal() {
 async function completeLogin(token, user) {
   SESSION.token = token;
   SESSION.user = user;
-  sessionStorage.setItem('bh_token', token);
+  localStorage.setItem('bh_token', token);
   try { window._boot = await gsRun('getBootData', token); } catch (e) { /* non-fatal */ }
   renderNav();
   routeToView();
@@ -818,9 +964,9 @@ async function loadMyBids() {
 function bidActionsHtml(b) {
   const cpd = SESSION.user.role === 'cpd_admin' || SESSION.user.role === 'cpd_officer';
   const btns = [];
+  btns.push(`<button class="btn btn-sm btn-muted" onclick="openBidDetail('${b.BidID}')">View</button>`);
   if (b.Status === 'Draft' && cpd) {
     btns.push(`<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`);
-    btns.push(`<button class="btn btn-sm btn-primary" onclick="submitForApproval('${b.BidID}')">Submit</button>`);
   }
   if (b.Status === 'PendingApproval' && cpd) {
     btns.push(`<button class="btn btn-sm btn-primary" onclick="approveBidAction('${b.BidID}')">Approve</button>`);
@@ -917,10 +1063,13 @@ function openBidEditor(bidId) {
       const b = res.bids.find(x => x.BidID === bidId);
       if (!b) return;
       document.getElementById('editor-title').value = b.Title || '';
+      document.getElementById('editor-category').value = b.Category || '';
       document.getElementById('editor-deadline').value = (b.SubmissionDeadline || '').slice(0, 16);
+      document.getElementById('editor-description').value = b.Description || '';
     });
   } else {
-    ['editor-title', 'editor-deadline'].forEach(id => document.getElementById(id).value = '');
+    ['editor-title', 'editor-deadline', 'editor-description'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('editor-category').value = '';
   }
   openModal('modal-bid-editor');
 }
@@ -965,11 +1114,11 @@ async function saveBidEditor(submitAfter) {
   const bidId = document.getElementById('editor-bid-id').value;
   const d = {
     title: document.getElementById('editor-title').value.trim(),
-    category: '',
+    category: document.getElementById('editor-category').value,
     department: '',
     estimatedBudget: '',
     submissionDeadline: document.getElementById('editor-deadline').value,
-    description: '',
+    description: document.getElementById('editor-description').value.trim(),
     documents: {},
   };
   try {
@@ -986,14 +1135,18 @@ async function saveBidEditor(submitAfter) {
 function previewBidEditor() {
   const title = document.getElementById('editor-title').value.trim();
   const deadline = document.getElementById('editor-deadline').value;
+  const category = document.getElementById('editor-category').value;
+  const description = document.getElementById('editor-description').value.trim();
   if (!title) { document.getElementById('bid-editor-error').textContent = 'Please enter a title first.'; return; }
   document.getElementById('bid-editor-error').textContent = '';
   const cardHtml = `
     <div class="card bid-card" style="cursor:default;pointer-events:none;margin:0;">
       <span class="stamp stamp-grey">Draft</span>
       <div class="control-no" style="margin-top:6px;">ITB-YYYY-XXXX</div>
-      <h3>${escapeHtml(title)}</h3>
-      <div class="meta">Deadline: ${deadline ? fmtDate(deadline) : '—'}</div>
+      ${category ? `<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);margin-top:4px;">${escapeHtml(category)}</div>` : ''}
+      <h3 style="margin-top:6px;">${escapeHtml(title)}</h3>
+      ${description ? `<div class="desc" style="margin-bottom:8px;">${escapeHtml(description)}</div>` : ''}
+      <div class="meta">📅 Deadline: ${deadline ? fmtDate(deadline) : '—'}</div>
     </div>`;
   document.getElementById('bid-preview-card').innerHTML = cardHtml;
   closeModal('modal-bid-editor');
