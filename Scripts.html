@@ -1376,6 +1376,7 @@ async function loadUsers() {
         <td>
           <button class="btn btn-sm btn-outline" onclick="openUserEditor('${u.UserID}')">Edit</button>
           ${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : ''}
+          <button class="btn btn-sm btn-danger" style="padding:4px 8px;" title="Delete user" data-uid="${escapeHtml(u.UserID)}" data-name="${escapeHtml(u.FullName)}" onclick="deleteUserAction(this.dataset.uid, this.dataset.name)">🗑</button>
         </td>
       </tr>`).join('') + `</tbody></table>`;
   } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users. ' + escapeHtml(e.message || String(e)) + '</p>'; }
@@ -1420,6 +1421,12 @@ async function deactivateUserAction(userId) {
   if (!window.confirm('Deactivate this staff user?')) return;
   try { await gsRun('deactivateUser', SESSION.token, userId); toast('Staff user deactivated.', 'success'); loadUsers(); }
   catch (e) { toast(e.message || 'Failed to deactivate.', 'error'); }
+}
+
+async function deleteUserAction(userId, name) {
+  if (!window.confirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return;
+  try { await gsRun('deleteUser', SESSION.token, userId); toast('Staff user deleted.', 'success'); loadUsers(); }
+  catch (e) { toast(e.message || 'Failed to delete.', 'error'); }
 }
 
 // ── STAFF: AUDIT LOG (cpd_admin only) ────────────────────────────

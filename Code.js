@@ -1419,6 +1419,19 @@ function deactivateUser(token, userId) {
   return { success: true };
 }
 
+function deleteUser(token, userId) {
+  const user = requireAuth(token);
+  if (!isAdmin(user)) throw new Error('CPD Administrator authorization required.');
+  const sheet = getSheet(SH.USERS);
+  const rowIndex = _findRowIndex(sheet, 'UserID', userId);
+  if (rowIndex === -1) throw new Error('User not found.');
+  const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
+  if (obj.Email === user.email) throw new Error('You cannot delete your own account.');
+  sheet.deleteRow(rowIndex);
+  _logRaw(user, 'DELETE', 'User', userId, 'Deleted staff account: ' + obj.Email);
+  return { success: true };
+}
+
 // ── AUDIT LOG (DPA 2012 — data logs) ────────────────────────────
 function _logRaw(user, action, entityType, entityId, details) {
   try {
