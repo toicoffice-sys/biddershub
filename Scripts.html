@@ -1283,7 +1283,7 @@ function openBidEditor(bidId) {
       // Show Bid Status selector only for Published/Closed bids
       const statusRow = document.getElementById('editor-submission-status-row');
       const statusSel = document.getElementById('editor-submission-status');
-      if (['Published', 'Closed'].includes(b.Status) && b.outcome !== 'Awarded') {
+      if (['Published', 'Closed'].includes(b.Status) && b.Outcome !== 'Awarded') {
         statusRow.style.display = '';
         statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
       } else {
