@@ -1284,35 +1284,37 @@ function rejectBid(token, bidId, notes) {
   return { success: true };
 }
 
-function publishBid(token, bidId, otp) {
+function _sha256(text) {
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, text, Utilities.Charset.UTF_8);
+  return bytes.map(function(b) { return ('0' + (b & 0xFF).toString(16)).slice(-2); }).join('');
+}
+
+function publishBid(token, bidId, password) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
-
-  // Verify action OTP
-  const propKey = 'act_otp_' + user.email;
-  const raw = PropertiesService.getScriptProperties().getProperty(propKey);
-  if (!raw) throw new Error('No verification code found. Please request a new code.');
-  let otpData;
-  try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code. Please request a new code.'); }
-  if (Date.now() > otpData.expiry) {
-    PropertiesService.getScriptProperties().deleteProperty(propKey);
-    throw new Error('Code has expired. Please request a new one.');
-  }
-  if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
-  PropertiesService.getScriptProperties().deleteProperty(propKey);
 
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
   if (!['Draft', 'PendingApproval', 'Approved', 'Closed'].includes(obj.Status)) throw new Error('This bid opportunity cannot be published.');
+
+  // Password verification required only when re-publishing a Closed bid
+  if (obj.Status === 'Closed') {
+    const storedHash = PropertiesService.getScriptProperties().getProperty('PUBLISH_CONFIRM_HASH');
+    if (!storedHash) throw new Error('Publish confirmation password not configured. Set PUBLISH_CONFIRM_HASH in Script Properties.');
+    if (!password) throw new Error('Password is required to re-publish a closed bid.');
+    if (_sha256((password || '').trim()) !== storedHash) throw new Error('Incorrect password. Please try again.');
+  }
+
   const now = new Date().toISOString();
-  obj.Status = 'Published';
+  obj.Status      = 'Published';
   obj.PublishedOn = obj.PublishedOn || now;
-  obj.Outcome = '';
-  obj.ClosedOn = '';
+  obj.Outcome     = '';
+  obj.ClosedOn    = '';
   obj.LastModified = now;
   _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
-  _logRaw(user, 'PUBLISH', 'BidOpportunity', bidId, 'Published to public bid board (OTP-verified)');
+  _logRaw(user, 'PUBLISH', 'BidOpportunity', bidId,
+    obj.Status === 'Closed' ? 'Re-published from Closed (password-verified)' : 'Published to public bid board');
   _cacheClear();
   return { success: true };
 }

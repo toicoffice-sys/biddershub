@@ -598,6 +598,22 @@
   </div>
 </div>
 
+<!-- ── MODAL: PUBLISH PASSWORD ────────────────────────────────── -->
+<div id="modal-publish-password" class="modal-overlay hidden">
+  <div class="modal" style="max-width:400px;">
+    <h3 style="margin:0 0 6px;font-size:16px;color:var(--ink);">Confirm Publish</h3>
+    <p style="font-size:14px;color:var(--ink-soft);margin-bottom:14px;line-height:1.6;">This bid was closed. Enter the CPD confirmation password to re-publish it.</p>
+    <label style="font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;">Password</label>
+    <input type="password" id="publish-pwd-input" placeholder="Enter confirmation password"
+      style="margin-top:6px;margin-bottom:6px;">
+    <p id="publish-pwd-error" style="font-size:12px;color:var(--ink-red);min-height:18px;margin-bottom:10px;"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-outline" id="publish-pwd-cancel">Cancel</button>
+      <button class="btn btn-primary" id="publish-pwd-ok">Publish</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL: ACTION OTP VERIFICATION ─────────────────────────── -->
 <div id="modal-action-otp" class="modal-overlay hidden">
   <div class="modal" style="max-width:420px;">

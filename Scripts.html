@@ -99,6 +99,23 @@ function showPrompt(message, placeholder) {
     setTimeout(() => input.focus(), 50);
   });
 }
+function showPublishPassword() {
+  return new Promise(resolve => {
+    const input  = document.getElementById('publish-pwd-input');
+    const errEl  = document.getElementById('publish-pwd-error');
+    const btnOk  = document.getElementById('publish-pwd-ok');
+    const btnCan = document.getElementById('publish-pwd-cancel');
+    input.value = '';
+    errEl.textContent = '';
+    openModal('modal-publish-password');
+    setTimeout(() => input.focus(), 100);
+    const done = val => { closeModal('modal-publish-password'); btnOk.onclick = null; btnCan.onclick = null; input.onkeydown = null; resolve(val); };
+    btnOk.onclick  = () => { const v = input.value; if (!v) { errEl.textContent = 'Password is required.'; return; } done(v); };
+    btnCan.onclick = () => done(null);
+    input.onkeydown = e => { if (e.key === 'Enter') btnOk.click(); };
+  });
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -1287,14 +1304,20 @@ async function saveBidEditor(action) {
     if (bidId) { await gsRun('updateBid', SESSION.token, bidId, d); }
     else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
     if (action === 'publish') {
-      // Require OTP before publishing
-      let sendRes;
-      try { sendRes = await gsRun('sendActionOTP', SESSION.token); }
-      catch (e) { errEl.textContent = e.message || 'Failed to send verification code.'; return; }
-      if (!sendRes.success) { errEl.textContent = sendRes.message || 'Failed to send verification code.'; return; }
-      const otp = await showActionOTP(sendRes.maskedEmail, 'A 6-digit verification code has been sent to ' + sendRes.maskedEmail + '. Enter it to confirm publishing this bid.');
-      if (otp === null) return; // cancelled
-      await gsRun('publishBid', SESSION.token, id, otp);
+      const currentStatus = document.getElementById('editor-bid-status').value;
+      if (currentStatus === 'Closed') {
+        // Closed → Published requires password confirmation
+        const pwd = await showPublishPassword();
+        if (pwd === null) return; // cancelled
+        try { await gsRun('publishBid', SESSION.token, id, pwd); }
+        catch (e) {
+          // Show error back in the password modal context
+          errEl.textContent = e.message || 'Failed to publish.';
+          return;
+        }
+      } else {
+        await gsRun('publishBid', SESSION.token, id, null);
+      }
     }
     else if (action === 'unpublish') await gsRun('unpublishBid', SESSION.token, id);
     else {
