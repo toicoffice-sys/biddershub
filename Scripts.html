@@ -647,49 +647,66 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
   html += `<h4 style="margin-top:16px;">Description</h4>
     <p style="white-space:pre-wrap;">${escapeHtml(bid.description || '—')}</p>`;
 
-  let showSubmissionSlots = false;
-  if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
-    html += `<h4 style="margin-top:16px;">Submit Your Bid</h4>`;
-    const isAccredited = vendorProfile && vendorProfile.AccreditationStatus === 'Approved';
-    if (!isAccredited) {
-      const statusLabel = vendorProfile ? (vendorProfile.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : vendorProfile.AccreditationStatus) : 'Not on file';
-      html += `<p class="hint">Only accredited vendors can submit a bid. Your current accreditation status:
-        <span class="stamp ${stampClass(vendorProfile ? vendorProfile.AccreditationStatus : 'Pending')}">${escapeHtml(statusLabel)}</span></p>`;
-    } else {
-      SUBMISSION_DOCS = mySubmission ? Object.assign({}, mySubmission.documents) : {};
-      html += mySubmission
-        ? `<p class="hint">You submitted this bid on ${fmtDate(mySubmission.SubmittedOn)}${mySubmission.LastUpdated !== mySubmission.SubmittedOn ? ' · last updated ' + fmtDate(mySubmission.LastUpdated) : ''}. Replace any document below and resubmit before the deadline if needed.</p>`
-        : `<p class="hint">Upload your proposal documents, then submit before the deadline.</p>`;
-      html += `<div id="submission-doc-slots"></div>
-        <button class="btn btn-primary" onclick="submitBidProposalAction('${bid.bidId}')">${mySubmission ? 'Resubmit Bid' : 'Submit Bid'}</button>
-        <div id="submission-error" class="error-text"></div>`;
-      showSubmissionSlots = true;
-    }
-  } else if (!SESSION.token && bid.status === 'Published') {
-    html += `<h4 style="margin-top:16px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+  const isAwarded = bid.status === 'Closed' && bid.outcome === 'Awarded';
+
+  // Winning bidder banner — shown for awarded bids
+  if (isAwarded) {
+    html += `
+      <div style="margin-top:20px;padding:16px 20px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#166534;margin-bottom:6px;">Winning Bidder</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:1.4rem;">🏆</span>
+          <span style="font-size:1.1rem;font-weight:700;color:#15803d;">${escapeHtml(bid.winner || '—')}</span>
+        </div>
+        <div style="font-size:12px;color:#166534;margin-top:6px;">This bid opportunity has been awarded. No further submissions are being accepted.</div>
+      </div>`;
   }
 
-  // LOI inline form — visible to public and vendors, hidden for staff
-  const isStaff = SESSION.token && ['cpd_admin','cpd_officer','proponent'].includes(SESSION.user.role);
-  if (!isStaff && bid.status === 'Published') {
-    html += `
-      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
-        <h4 style="margin-bottom:4px;">Interested in this bid?</h4>
-        <p class="hint" style="margin-bottom:14px;">Fill in your details below and submit a Letter of Intent. Our procurement team will reach out to you.</p>
-        <input type="hidden" id="bid-loi-title" value="${escapeHtml(bid.title)}">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div><label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
-            <input type="text" id="bid-loi-company" placeholder="e.g. ABC Trading Corp."></div>
-          <div><label class="field-label">Contact Person <span style="color:var(--danger)">*</span></label>
-            <input type="text" id="bid-loi-person" placeholder="Full name"></div>
-          <div><label class="field-label">Email <span style="color:var(--danger)">*</span></label>
-            <input type="email" id="bid-loi-email" placeholder="your@email.com"></div>
-          <div><label class="field-label">Contact Number <span style="color:var(--danger)">*</span></label>
-            <input type="tel" id="bid-loi-number" placeholder="e.g. 09xx-xxx-xxxx"></div>
-        </div>
-        <p id="bid-loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
-        <button class="btn btn-primary" style="margin-top:4px;" onclick="submitBidLOI(this)">Submit Letter of Intent</button>
-      </div>`;
+  let showSubmissionSlots = false;
+  if (!isAwarded) {
+    if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
+      html += `<h4 style="margin-top:16px;">Submit Your Bid</h4>`;
+      const isAccredited = vendorProfile && vendorProfile.AccreditationStatus === 'Approved';
+      if (!isAccredited) {
+        const statusLabel = vendorProfile ? (vendorProfile.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : vendorProfile.AccreditationStatus) : 'Not on file';
+        html += `<p class="hint">Only accredited vendors can submit a bid. Your current accreditation status:
+          <span class="stamp ${stampClass(vendorProfile ? vendorProfile.AccreditationStatus : 'Pending')}">${escapeHtml(statusLabel)}</span></p>`;
+      } else {
+        SUBMISSION_DOCS = mySubmission ? Object.assign({}, mySubmission.documents) : {};
+        html += mySubmission
+          ? `<p class="hint">You submitted this bid on ${fmtDate(mySubmission.SubmittedOn)}${mySubmission.LastUpdated !== mySubmission.SubmittedOn ? ' · last updated ' + fmtDate(mySubmission.LastUpdated) : ''}. Replace any document below and resubmit before the deadline if needed.</p>`
+          : `<p class="hint">Upload your proposal documents, then submit before the deadline.</p>`;
+        html += `<div id="submission-doc-slots"></div>
+          <button class="btn btn-primary" onclick="submitBidProposalAction('${bid.bidId}')">${mySubmission ? 'Resubmit Bid' : 'Submit Bid'}</button>
+          <div id="submission-error" class="error-text"></div>`;
+        showSubmissionSlots = true;
+      }
+    } else if (!SESSION.token && bid.status === 'Published') {
+      html += `<h4 style="margin-top:16px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+    }
+
+    // LOI inline form — visible to public and vendors, hidden for staff
+    const isStaff = SESSION.token && ['cpd_admin','cpd_officer','proponent'].includes(SESSION.user.role);
+    if (!isStaff && bid.status === 'Published') {
+      html += `
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
+          <h4 style="margin-bottom:4px;">Interested in this bid?</h4>
+          <p class="hint" style="margin-bottom:14px;">Fill in your details below and submit a Letter of Intent. Our procurement team will reach out to you.</p>
+          <input type="hidden" id="bid-loi-title" value="${escapeHtml(bid.title)}">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div><label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="bid-loi-company" placeholder="e.g. ABC Trading Corp."></div>
+            <div><label class="field-label">Contact Person <span style="color:var(--danger)">*</span></label>
+              <input type="text" id="bid-loi-person" placeholder="Full name"></div>
+            <div><label class="field-label">Email <span style="color:var(--danger)">*</span></label>
+              <input type="email" id="bid-loi-email" placeholder="your@email.com"></div>
+            <div><label class="field-label">Contact Number <span style="color:var(--danger)">*</span></label>
+              <input type="tel" id="bid-loi-number" placeholder="e.g. 09xx-xxx-xxxx"></div>
+          </div>
+          <p id="bid-loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
+          <button class="btn btn-primary" style="margin-top:4px;" onclick="submitBidLOI(this)">Submit Letter of Intent</button>
+        </div>`;
+    }
   }
 
   document.getElementById('bid-detail-content').innerHTML = html;

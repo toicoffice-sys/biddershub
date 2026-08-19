@@ -1404,7 +1404,23 @@ function getBidById(id) {
     .filter(q => q.BidID === id && q.Status === 'Answered')
     .map(q => ({ question: q.Question, response: q.Response, respondedOn: q.RespondedOn }));
 
-  return { success: true, bid: _publicBidView(obj), inquiries };
+  const view = _publicBidView(obj);
+
+  // Check LOI sheet for an awarded submission — authoritative source for Awarded status
+  try {
+    const normalizedTitle = (obj.Title || '').trim().toLowerCase();
+    const awardedLOI = sheetToObjects(getSheet(SH.LOI)).find(function(l) {
+      return (l.Status || '').trim() === 'Awarded' &&
+             (l.BidTitle || '').trim().toLowerCase() === normalizedTitle;
+    });
+    if (awardedLOI) {
+      view.status  = 'Closed';
+      view.outcome = 'Awarded';
+      view.winner  = (awardedLOI.CompanyName || '').trim();
+    }
+  } catch (e) { console.error('getBidById LOI check failed:', e); }
+
+  return { success: true, bid: view, inquiries };
 }
 
 function getMyBids(token, statusFilter) {
