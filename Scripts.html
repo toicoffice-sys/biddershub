@@ -72,6 +72,33 @@ function toast(msg, type) {
 }
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function showConfirm(message) {
+  return new Promise(resolve => {
+    document.getElementById('confirm-modal-message').textContent = message;
+    const ok  = document.getElementById('confirm-modal-ok');
+    const cancel = document.getElementById('confirm-modal-cancel');
+    const done = val => { closeModal('modal-confirm'); ok.onclick = null; cancel.onclick = null; resolve(val); };
+    ok.onclick = () => done(true);
+    cancel.onclick = () => done(false);
+    openModal('modal-confirm');
+  });
+}
+
+function showPrompt(message, placeholder) {
+  return new Promise(resolve => {
+    document.getElementById('prompt-modal-message').textContent = message;
+    const input  = document.getElementById('prompt-modal-input');
+    const ok     = document.getElementById('prompt-modal-ok');
+    const cancel = document.getElementById('prompt-modal-cancel');
+    input.value = ''; input.placeholder = placeholder || '';
+    const done = val => { closeModal('modal-prompt'); ok.onclick = null; cancel.onclick = null; resolve(val); };
+    ok.onclick = () => done(input.value);
+    cancel.onclick = () => done(null);
+    openModal('modal-prompt');
+    setTimeout(() => input.focus(), 50);
+  });
+}
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -300,7 +327,7 @@ function renderLOITable() {
 function loiGoPage(page) { LOI_PAGE = page; renderLOITable(); }
 
 async function awardLOIAction(loiId, company) {
-  if (!window.confirm('Mark "' + (company || 'this submission') + '" as Awarded?')) return;
+  if (!await showConfirm('Mark "' + (company || 'this submission') + '" as Awarded?')) return;
   try { await gsRun('awardLOI', SESSION.token, loiId); toast('Marked as Awarded.', 'success'); loadLOI(); }
   catch (e) { toast(e.message || 'Failed to award.', 'error'); }
 }
@@ -1017,7 +1044,7 @@ async function approveBidAction(bidId) {
   catch (e) { toast(e.message || 'Failed to approve.', 'error'); }
 }
 async function rejectBidAction(bidId) {
-  const notes = window.prompt('Reason for returning this bid to draft:') || '';
+  const notes = await showPrompt('Reason for returning this bid to draft:') || '';
   try { await gsRun('rejectBid', SESSION.token, bidId, notes); toast('Bid opportunity returned to draft.', 'success'); loadMyBids(); loadApprovals(); }
   catch (e) { toast(e.message || 'Failed to reject.', 'error'); }
 }
@@ -1026,14 +1053,14 @@ async function publishBidAction(bidId) {
   catch (e) { toast(e.message || 'Failed to publish.', 'error'); }
 }
 async function closeBidAction(bidId) {
-  const outcome = window.prompt('Enter outcome exactly as: Awarded, Cancelled, or No Award');
+  const outcome = await showPrompt('Enter outcome:', 'Awarded, Cancelled, or No Award');
   if (!outcome) return;
   try { await gsRun('closeBid', SESSION.token, bidId, outcome.trim()); toast('Bid opportunity closed.', 'success'); loadMyBids(); }
   catch (e) { toast(e.message || 'Failed to close.', 'error'); }
 }
 
 async function deleteBidAction(bidId, title) {
-  if (!window.confirm('Permanently delete "' + (title || 'this bid') + '"? This cannot be undone.')) return;
+  if (!await showConfirm('Permanently delete "' + (title || 'this bid') + '"? This cannot be undone.')) return;
   try { await gsRun('deleteBid', SESSION.token, bidId); toast('Bid opportunity deleted.', 'success'); loadMyBids(); }
   catch (e) { toast(e.message || 'Failed to delete.', 'error'); }
 }
@@ -1190,10 +1217,10 @@ async function loadVendorApplications() {
 async function reviewVendorAction(vendorId, decision) {
   let notes = '';
   if (decision === 'Approved') {
-    notes = window.prompt('Approval notes (optional):') || '';
+    notes = await showPrompt('Approval notes (optional):', '') || '';
   } else {
     const label = decision === 'Rejected' ? 'Reason for rejection:' : 'Describe what needs to be corrected:';
-    notes = window.prompt(label) || '';
+    notes = await showPrompt(label, '') || '';
     if (!notes.trim()) { toast('Please provide a reason/description.', 'error'); return; }
   }
   try {
@@ -1302,7 +1329,7 @@ async function loadInquiriesForReview() {
 }
 
 async function respondToInquiryAction(inquiryId) {
-  const response = window.prompt('Your response to this inquiry:');
+  const response = await showPrompt('Your response to this inquiry:', '');
   if (!response || !response.trim()) return;
   try {
     await gsRun('respondToInquiry', SESSION.token, inquiryId, response.trim());
@@ -1434,13 +1461,13 @@ async function submitEditUser() {
 }
 
 async function deactivateUserAction(userId) {
-  if (!window.confirm('Deactivate this staff user?')) return;
+  if (!await showConfirm('Deactivate this staff user?')) return;
   try { await gsRun('deactivateUser', SESSION.token, userId); toast('Staff user deactivated.', 'success'); loadUsers(); }
   catch (e) { toast(e.message || 'Failed to deactivate.', 'error'); }
 }
 
 async function deleteUserAction(userId, name) {
-  if (!window.confirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return;
+  if (!await showConfirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return;
   try { await gsRun('deleteUser', SESSION.token, userId); toast('Staff user deleted.', 'success'); loadUsers(); }
   catch (e) { toast(e.message || 'Failed to delete.', 'error'); }
 }

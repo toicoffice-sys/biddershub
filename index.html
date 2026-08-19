@@ -568,6 +568,29 @@
   </div>
 </div>
 
+<!-- ── MODAL: CUSTOM CONFIRM ──────────────────────────────────── -->
+<div id="modal-confirm" class="modal-overlay hidden">
+  <div class="modal" style="max-width:420px;">
+    <p id="confirm-modal-message" style="font-size:15px;color:var(--ink);margin-bottom:20px;line-height:1.6;"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-outline" id="confirm-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="confirm-modal-ok">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: CUSTOM PROMPT ───────────────────────────────────── -->
+<div id="modal-prompt" class="modal-overlay hidden">
+  <div class="modal" style="max-width:420px;">
+    <p id="prompt-modal-message" style="font-size:15px;color:var(--ink);margin-bottom:12px;line-height:1.6;"></p>
+    <input type="text" id="prompt-modal-input" style="margin-bottom:16px;">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-outline" id="prompt-modal-cancel">Cancel</button>
+      <button class="btn btn-primary" id="prompt-modal-ok">OK</button>
+    </div>
+  </div>
+</div>
+
 <?!= include('Scripts'); ?>
 </body>
 </html>
