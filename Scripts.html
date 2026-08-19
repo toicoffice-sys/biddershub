@@ -113,7 +113,7 @@ async function init() {
 }
 
 function populateCategorySelects() {
-  const ids = ['public-category-filter', 'vendor-category-filter', 'apply-businessCategory', 'editor-category', 'addv-businessCategory'];
+  const ids = ['vendor-category-filter', 'apply-businessCategory', 'editor-category', 'addv-businessCategory'];
   ids.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
@@ -248,20 +248,13 @@ async function submitLOIForm(btn) {
 
 // ── PUBLIC BID BOARD ─────────────────────────────────────────
 async function loadPublicBoard() {
-  const grid = document.getElementById('public-bid-grid');
-  grid.innerHTML = '<p class="hint">Loading…</p>';
   try {
-    const filters = {
-      q: document.getElementById('public-search').value.trim(),
-      category: document.getElementById('public-category-filter').value,
-    };
-    const bids = await gsRun('getPublicBidBoard', filters);
+    const bids = await gsRun('getPublicBidBoard', {});
     PUBLIC_BIDS = bids;
     PUBLIC_FILTER = null;
     renderPublicHeroStats(bids);
     document.getElementById('hero-results-panel').classList.add('hidden');
-    renderBidGrid(grid, bids, false);
-  } catch (e) { grid.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
+  } catch (e) { console.error('Failed to load bid opportunities.', e); }
 }
 
 function renderPublicHeroStats(bids) {
