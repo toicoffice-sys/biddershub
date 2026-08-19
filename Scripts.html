@@ -1268,6 +1268,7 @@ function openBidEditor(bidId) {
   document.getElementById('editor-bid-id').value = bidId || '';
   document.getElementById('bid-editor-title').textContent = bidId ? 'Edit Bid Opportunity' : 'New Bid Opportunity';
   document.getElementById('editor-bid-status').value = '';
+  document.getElementById('editor-submission-status-row').style.display = 'none';
   const toggleBtn = document.getElementById('editor-publish-toggle-btn');
   toggleBtn.textContent = 'Publish';
   if (bidId) {
@@ -1280,16 +1281,12 @@ function openBidEditor(bidId) {
       document.getElementById('editor-description').value = b.Description || '';
       document.getElementById('editor-bid-status').value = b.Status || '';
       toggleBtn.textContent = b.Status === 'Published' ? 'Unpublish' : 'Publish';
-      // Show Bid Status selector only for Published/Closed bids
+      // Show Bid Status selector for Published/Closed bids (not awarded)
+      const showStatusField = ['Published', 'Closed'].includes(b.Status) && b.Outcome !== 'Awarded';
       const statusRow = document.getElementById('editor-submission-status-row');
       const statusSel = document.getElementById('editor-submission-status');
-      if (['Published', 'Closed'].includes(b.Status) && b.Outcome !== 'Awarded') {
-        statusRow.style.display = '';
-        statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
-      } else {
-        statusRow.style.display = 'none';
-        statusSel.value = 'open';
-      }
+      statusRow.style.display = showStatusField ? 'block' : 'none';
+      statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
     });
   } else {
     ['editor-title', 'editor-deadline', 'editor-description'].forEach(id => document.getElementById(id).value = '');
