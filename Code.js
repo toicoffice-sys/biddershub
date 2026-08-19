@@ -21,7 +21,7 @@ const SH = {
   LOI:         'LettersOfIntent',
 };
 
-const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','BidTitle','SubmittedOn'];
+const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','BidTitle','SubmittedOn','Status'];
 
 const USER_HEADERS       = ['UserID','Email','FullName','Role','Department','Status','AddedBy','AddedOn'];
 const VENDOR_HEADERS     = ['VendorID','AccreditationNo','CompanyName','TradeName','BusinessCategory','TINNumber','DTISECReg','ContactPerson','ContactNumber','Email','Address','Documents','AccreditationStatus','SubmittedOn','ReviewedBy','ReviewedOn','ReviewNotes','ExpiryDate','LastUpdated'];
@@ -113,11 +113,15 @@ function _migrateLOIHeaders(sheet) {
   const ncols = sheet.getLastColumn();
   const headers = sheet.getRange(1, 1, 1, ncols).getValues()[0];
   // If BidTitle is missing but SubmittedOn exists, the header is one column behind the data.
-  // Col6 says 'SubmittedOn' but data rows store bidTitle there; actual date is in col7 with no header.
   if (!headers.includes('BidTitle') && headers.includes('SubmittedOn')) {
     const soPos = headers.indexOf('SubmittedOn') + 1; // 1-based
     sheet.getRange(1, soPos).setValue('BidTitle');
     sheet.getRange(1, soPos + 1).setValue('SubmittedOn');
+    headers.splice(soPos - 1, 1, 'BidTitle', 'SubmittedOn'); // keep local copy in sync
+  }
+  // Append Status column if missing
+  if (!headers.includes('Status')) {
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue('Status');
   }
 }
 
@@ -138,8 +142,29 @@ function getLettersOfIntent(token) {
     contactNumber: r[idx('ContactNumber')],
     bidTitle:      r[idx('BidTitle')] || '',
     submittedOn:   r[idx('SubmittedOn')] instanceof Date ? r[idx('SubmittedOn')].toISOString() : (r[idx('SubmittedOn')] || ''),
+    status:        r[idx('Status')] || '',
   })).reverse(); // newest first
   return { success: true, lois };
+}
+
+function awardLOI(token, loiId) {
+  const user = requireAuth(token);
+  if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+  const sheet = getSheet(SH.LOI);
+  _migrateLOIHeaders(sheet);
+  const data = sheet.getDataRange().getValues();
+  const h = data[0];
+  const idIdx = h.indexOf('LOIID');
+  const statusIdx = h.indexOf('Status');
+  if (statusIdx === -1) throw new Error('Status column not found.');
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][idIdx] === loiId) {
+      sheet.getRange(i + 1, statusIdx + 1).setValue('Awarded');
+      _logRaw(user, 'APPROVE', 'LOI', loiId, 'Awarded LOI submission');
+      return { success: true };
+    }
+  }
+  throw new Error('Submission not found.');
 }
 
 // ── SPREADSHEET HELPERS ────────────────────────────────────────
