@@ -489,31 +489,8 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
     <div style="margin-top:10px;"><b>📅 Submission Deadline:</b> ${fmtDate(bid.submissionDeadline)}</div>
     <div class="hint" style="margin-top:6px;">Published: ${fmtDate(bid.publishedOn)}${bid.closedOn ? ' · Closed: ' + fmtDate(bid.closedOn) : ''}</div>`;
 
-  html += `<h4 style="margin-top:16px;">Documents</h4>${renderDocList(bid.documents, BID_DOCUMENT_TYPES)}`;
-
-  html += `<h4 style="margin-top:16px;">Questions &amp; Answers</h4>`;
-  if (inquiries.length) {
-    html += inquiries.map(q => `
-      <div class="card card-tight" style="background:var(--paper-2);">
-        <div><b>Q:</b> ${escapeHtml(q.question)}</div>
-        <div style="margin-top:4px;"><b>A:</b> ${escapeHtml(q.response)}</div>
-        <div class="hint">${fmtDate(q.respondedOn)}</div>
-      </div>`).join('');
-  } else {
-    html += `<p class="hint">No questions have been answered yet.</p>`;
-  }
-
-  if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
-    html += `
-      <div class="field" style="margin-top:14px;">
-        <label>Ask a question about this bid opportunity</label>
-        <textarea id="inquiry-question" rows="3"></textarea>
-      </div>
-      <button class="btn btn-primary" onclick="submitInquiryForBid('${bid.bidId}')">Submit Question</button>
-      <div id="inquiry-error" class="error-text"></div>`;
-  } else if (!SESSION.token && bid.status === 'Published') {
-    html += `<p class="hint">Sign in as an accredited vendor to submit an inquiry.</p>`;
-  }
+  html += `<h4 style="margin-top:16px;">Description</h4>
+    <p style="white-space:pre-wrap;">${escapeHtml(bid.description || '—')}</p>`;
 
   let showSubmissionSlots = false;
   if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
