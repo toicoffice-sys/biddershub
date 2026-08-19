@@ -259,7 +259,8 @@ async function loadPublicBoard() {
     PUBLIC_BIDS = bids;
     PUBLIC_FILTER = null;
     renderPublicHeroStats(bids);
-    applyPublicFilter();
+    document.getElementById('hero-results-panel').classList.add('hidden');
+    renderBidGrid(grid, bids, false);
   } catch (e) { grid.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
 }
 
@@ -280,36 +281,59 @@ function renderPublicHeroStats(bids) {
 function togglePublicFilter(type) {
   PUBLIC_FILTER = PUBLIC_FILTER === type ? null : type;
   applyPublicFilter();
-  // scroll to bid grid
-  const grid = document.getElementById('public-bid-grid');
-  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function applyPublicFilter() {
-  const grid = document.getElementById('public-bid-grid');
-  // update active state on stat items
-  ['open','awarded'].forEach(type => {
-    const el = document.getElementById('stat-' + type);
-    if (el) el.classList.toggle('register-item-active', PUBLIC_FILTER === type);
+  // update active state on stat tabs
+  ['open','awarded'].forEach(t => {
+    const el = document.getElementById('stat-' + t);
+    if (el) el.classList.toggle('register-item-active', PUBLIC_FILTER === t);
   });
-  let filtered;
+
+  const panel = document.getElementById('hero-results-panel');
+  const list  = document.getElementById('hero-results-list');
+  const title = document.getElementById('hero-results-title');
+
+  if (!PUBLIC_FILTER) {
+    panel.classList.add('hidden');
+    return;
+  }
+
+  let filtered, label;
   if (PUBLIC_FILTER === 'open') {
     filtered = PUBLIC_BIDS.filter(b => b.status === 'Published');
-  } else if (PUBLIC_FILTER === 'awarded') {
-    filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
+    label = 'Open Opportunities — ' + filtered.length + ' bid' + (filtered.length !== 1 ? 's' : '');
   } else {
-    filtered = PUBLIC_BIDS;
+    filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
+    label = 'Awarded Bids — ' + filtered.length + ' record' + (filtered.length !== 1 ? 's' : '');
   }
-  const label = PUBLIC_FILTER === 'open' ? 'Open Opportunities'
-              : PUBLIC_FILTER === 'awarded' ? 'Awarded Bids'
-              : null;
-  renderBidGrid(grid, filtered, false, label);
+
+  title.textContent = label;
+
+  if (!filtered.length) {
+    list.innerHTML = '<div class="bid-list-empty">No records found.</div>';
+  } else {
+    list.innerHTML = filtered.map(b => `
+      <div class="bid-list-item" onclick="openBidDetail('${b.bidId}')">
+        <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
+        <div class="bli-body">
+          <div class="bli-title">${escapeHtml(b.title)}</div>
+          <div class="bli-meta">
+            <span class="stamp ${stampClass(b.status)}" style="font-size:10px;padding:2px 7px;">${escapeHtml(b.status)}${b.outcome ? ' · ' + escapeHtml(b.outcome) : ''}</span>
+            &nbsp; 📅 Deadline: ${fmtDate(b.submissionDeadline)}
+          </div>
+        </div>
+        <div class="bli-arrow">›</div>
+      </div>`).join('');
+  }
+
+  panel.classList.remove('hidden');
+  panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-function renderBidGrid(container, bids, vendorMode, filterLabel) {
-  const header = filterLabel ? `<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--accent);">🔍 ${escapeHtml(filterLabel)} <button onclick="togglePublicFilter(PUBLIC_FILTER)" style="background:none;border:none;font-size:11px;color:#9ca3af;cursor:pointer;margin-left:6px;text-decoration:underline;">Clear filter</button></div>` : '';
-  if (!bids.length) { container.innerHTML = header + '<div class="empty-state">No bid opportunities found.</div>'; return; }
-  container.innerHTML = header + bids.map(b => `
+function renderBidGrid(container, bids, vendorMode) {
+  if (!bids.length) { container.innerHTML = '<div class="empty-state">No bid opportunities found.</div>'; return; }
+  container.innerHTML = bids.map(b => `
     <div class="card bid-card" onclick="openBidDetail('${b.bidId}')">
       <span class="stamp ${stampClass(b.status)}">${escapeHtml(b.status)}${b.outcome ? ' · ' + escapeHtml(b.outcome) : ''}</span>
       <div class="control-no" style="margin-top:6px;">${escapeHtml(b.referenceNo || '')}</div>
