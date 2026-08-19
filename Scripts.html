@@ -268,13 +268,17 @@ function renderPublicHeroStats(bids) {
   const published = bids.filter(b => b.status === 'Published').length;
   const awarded = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
   document.getElementById('public-hero-stats').innerHTML = `
-    <div class="register-item register-item-btn" id="stat-open" onclick="togglePublicFilter('open')" title="Show open bid opportunities">
+    <div class="register-item register-item-btn" id="stat-open" onclick="togglePublicFilter('open')" title="View open bid opportunities">
+      <div class="stat-icon"><span class="stat-dot" style="background:#4ade80;"></span> Open</div>
       <div class="num">${published}</div>
-      <div class="label">Open Opportunities ▾</div>
+      <div class="label">Open Opportunities</div>
+      <div class="stat-hint">Click to view listings ↓</div>
     </div>
-    <div class="register-item register-item-btn" id="stat-awarded" onclick="togglePublicFilter('awarded')" title="Show awarded bids">
+    <div class="register-item register-item-btn" id="stat-awarded" onclick="togglePublicFilter('awarded')" title="View awarded bids">
+      <div class="stat-icon"><span class="stat-dot" style="background:#fbbf24;"></span> Awarded</div>
       <div class="num">${awarded}</div>
-      <div class="label">Awarded ▾</div>
+      <div class="label">Awarded Bids</div>
+      <div class="stat-hint">Click to view listings ↓</div>
     </div>`;
 }
 
