@@ -583,7 +583,9 @@ function applyPublicFilter() {
       <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
       <div class="bli-body">
         <div class="bli-title">${escapeHtml(b.title)}</div>
-        <div class="bli-meta">${escapeHtml(b.description || '—')}</div>
+        ${PUBLIC_FILTER === 'awarded' && b.winner
+          ? `<div class="bli-meta" style="color:#166534;font-weight:600;">🏆 ${escapeHtml(b.winner)}</div>`
+          : `<div class="bli-meta">${escapeHtml(b.description || '—')}</div>`}
       </div>
       <div class="bli-arrow">›</div>
     </div>`).join('') + `</div>`;

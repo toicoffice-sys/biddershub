@@ -190,9 +190,10 @@ function awardLOI(token, loiId) {
   _migrateLOIHeaders(sheet);
   const data = sheet.getDataRange().getValues();
   const h = data[0];
-  const idIdx      = h.indexOf('LOIID');
-  const statusIdx  = h.indexOf('Status');
-  const titleIdx   = h.indexOf('BidTitle');
+  const idIdx         = h.indexOf('LOIID');
+  const statusIdx     = h.indexOf('Status');
+  const titleIdx      = h.indexOf('BidTitle');
+  const companyIdx    = h.indexOf('CompanyName');
   if (statusIdx === -1) throw new Error('Status column not found.');
 
   for (let i = 1; i < data.length; i++) {
@@ -200,28 +201,31 @@ function awardLOI(token, loiId) {
       sheet.getRange(i + 1, statusIdx + 1).setValue('Awarded');
       _logRaw(user, 'APPROVE', 'LOI', loiId, 'Awarded LOI submission');
 
-      // Also close the linked bid so the homepage Awarded Bids count updates
-      if (titleIdx !== -1) {
-        const bidTitle = data[i][titleIdx];
-        if (bidTitle) {
-          const bidSheet = getSheet(SH.BIDS);
-          const bidData  = bidSheet.getDataRange().getValues();
-          const bh       = bidData[0];
-          const bTitleIdx = bh.indexOf('Title');
-          const bStatusIdx = bh.indexOf('Status');
-          const bOutcomeIdx = bh.indexOf('Outcome');
-          const bClosedIdx  = bh.indexOf('ClosedOn');
-          const bModIdx     = bh.indexOf('LastModified');
-          for (let j = 1; j < bidData.length; j++) {
-            if (bidData[j][bTitleIdx] === bidTitle && bidData[j][bStatusIdx] === 'Published') {
-              const now = new Date().toISOString();
-              bidSheet.getRange(j + 1, bStatusIdx + 1).setValue('Closed');
-              bidSheet.getRange(j + 1, bOutcomeIdx + 1).setValue('Awarded');
-              bidSheet.getRange(j + 1, bClosedIdx  + 1).setValue(now);
-              bidSheet.getRange(j + 1, bModIdx     + 1).setValue(now);
-              _logRaw(user, 'CLOSE', 'BidOpportunity', bidData[j][bh.indexOf('BidID')], 'Auto-closed via LOI award');
-              break;
+      // Also close the linked bid and record the winner so the homepage Awarded Bids tab updates
+      const bidTitle   = titleIdx  !== -1 ? (data[i][titleIdx]   || '').trim() : '';
+      const companyName = companyIdx !== -1 ? (data[i][companyIdx] || '').trim() : '';
+      if (bidTitle) {
+        const bidSheet = getSheet(SH.BIDS);
+        const bidData  = bidSheet.getDataRange().getValues();
+        const bh       = bidData[0];
+        const bTitleIdx   = bh.indexOf('Title');
+        const bStatusIdx  = bh.indexOf('Status');
+        const bOutcomeIdx = bh.indexOf('Outcome');
+        const bClosedIdx  = bh.indexOf('ClosedOn');
+        const bModIdx     = bh.indexOf('LastModified');
+        const bNotesIdx   = bh.indexOf('ReviewNotes');
+        for (let j = 1; j < bidData.length; j++) {
+          if ((bidData[j][bTitleIdx] || '').trim() === bidTitle && bidData[j][bStatusIdx] !== 'Closed') {
+            const now = new Date().toISOString();
+            bidSheet.getRange(j + 1, bStatusIdx  + 1).setValue('Closed');
+            bidSheet.getRange(j + 1, bOutcomeIdx + 1).setValue('Awarded');
+            bidSheet.getRange(j + 1, bClosedIdx  + 1).setValue(now);
+            bidSheet.getRange(j + 1, bModIdx     + 1).setValue(now);
+            if (bNotesIdx !== -1 && companyName) {
+              bidSheet.getRange(j + 1, bNotesIdx + 1).setValue('Awarded to: ' + companyName);
             }
+            _logRaw(user, 'CLOSE', 'BidOpportunity', bidData[j][bh.indexOf('BidID')], 'Auto-closed via LOI award to ' + companyName);
+            break;
           }
         }
       }
@@ -306,13 +310,15 @@ function revokeAward(token, loiId, otp) {
           const bOutcomeIdx = bh.indexOf('Outcome');
           const bClosedIdx  = bh.indexOf('ClosedOn');
           const bModIdx     = bh.indexOf('LastModified');
+          const bNotesIdx   = bh.indexOf('ReviewNotes');
           for (let j = 1; j < bidData.length; j++) {
-            if (bidData[j][bTitleIdx] === bidTitle && bidData[j][bStatusIdx] === 'Closed' && bidData[j][bOutcomeIdx] === 'Awarded') {
+            if ((bidData[j][bTitleIdx] || '').trim() === bidTitle && bidData[j][bStatusIdx] === 'Closed' && bidData[j][bOutcomeIdx] === 'Awarded') {
               const now = new Date().toISOString();
               bidSheet.getRange(j + 1, bStatusIdx  + 1).setValue('Published');
               bidSheet.getRange(j + 1, bOutcomeIdx + 1).setValue('');
               bidSheet.getRange(j + 1, bClosedIdx  + 1).setValue('');
               bidSheet.getRange(j + 1, bModIdx     + 1).setValue(now);
+              if (bNotesIdx !== -1) bidSheet.getRange(j + 1, bNotesIdx + 1).setValue('');
               _logRaw(user, 'UPDATE', 'BidOpportunity', bidData[j][bh.indexOf('BidID')], 'Bid reverted to Published via award revocation');
               break;
             }
@@ -1164,10 +1170,13 @@ function _getBidRow(bidId) {
 }
 
 function _publicBidView(b) {
+  const notes  = b.ReviewNotes || '';
+  const winner = notes.startsWith('Awarded to: ') ? notes.slice('Awarded to: '.length).trim() : '';
   return {
     bidId: b.BidID, referenceNo: b.ReferenceNo, title: b.Title, description: b.Description, category: b.Category,
     department: b.Department, estimatedBudget: b.EstimatedBudget, submissionDeadline: b.SubmissionDeadline,
     status: b.Status, outcome: b.Outcome, publishedOn: b.PublishedOn, closedOn: b.ClosedOn,
+    winner: winner,
     documents: _safeParseJSON(b.Documents, {}),
   };
 }
