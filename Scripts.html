@@ -270,7 +270,7 @@ function renderLOITable() {
       <th>#</th><th>Company</th><th>Contact Person</th><th>Email</th><th>Contact No.</th><th>Subject</th><th>Submitted</th><th></th>
     </tr></thead>
     <tbody>${page.map((r, i) => {
-      const subject = r.bidTitle || '—';
+      const subject = r.bidTitle ? `${r.bidTitle} — ${r.companyName}` : '—';
       return `<tr>
       <td style="color:var(--ink-faint);font-size:12px;">${start + i + 1}</td>
       <td style="font-weight:600;">${escapeHtml(r.companyName)}</td>

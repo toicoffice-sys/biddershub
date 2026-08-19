@@ -21,7 +21,7 @@ const SH = {
   LOI:         'LettersOfIntent',
 };
 
-const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','SubmittedOn'];
+const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','BidTitle','SubmittedOn'];
 
 const USER_HEADERS       = ['UserID','Email','FullName','Role','Department','Status','AddedBy','AddedOn'];
 const VENDOR_HEADERS     = ['VendorID','AccreditationNo','CompanyName','TradeName','BusinessCategory','TINNumber','DTISECReg','ContactPerson','ContactNumber','Email','Address','Documents','AccreditationStatus','SubmittedOn','ReviewedBy','ReviewedOn','ReviewNotes','ExpiryDate','LastUpdated'];
@@ -106,6 +106,27 @@ function include(filename) {
 }
 
 function getCategories() { return CATEGORIES; }
+
+/** Returns all Letters of Intent — staff only. */
+function getLettersOfIntent(token) {
+  const user = requireAuth(token);
+  if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+  const sheet = getSheet(SH.LOI);
+  if (sheet.getLastRow() < 2) return { success: true, lois: [] };
+  const data = sheet.getDataRange().getValues();
+  const h = data[0];
+  const idx = k => h.indexOf(k);
+  const lois = data.slice(1).map(r => ({
+    loiId:         r[idx('LOIID')],
+    companyName:   r[idx('CompanyName')],
+    contactPerson: r[idx('ContactPerson')],
+    contactEmail:  r[idx('ContactEmail')],
+    contactNumber: r[idx('ContactNumber')],
+    bidTitle:      r[idx('BidTitle')] || '',
+    submittedOn:   r[idx('SubmittedOn')] instanceof Date ? r[idx('SubmittedOn')].toISOString() : (r[idx('SubmittedOn')] || ''),
+  })).reverse(); // newest first
+  return { success: true, lois };
+}
 
 // ── SPREADSHEET HELPERS ────────────────────────────────────────
 function _ss() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
@@ -345,17 +366,13 @@ function _dispatchOTP(email) {
   PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify({ code, expiry }));
 
   try {
-    MailApp.sendEmail({
-      to: email,
-      subject: 'BiddersHub — Your Access Code',
-      body:
-        'Your 6-digit access code is: ' + code + '\n\n' +
-        'This code expires in 10 minutes.\n\n' +
-        'If you did not request this code, please ignore this email.\n\n' +
-        '— DLSL Central Procurement Office · BiddersHub',
-    });
+    _mail(email, 'BiddersHub — Your Access Code',
+      'Your 6-digit access code is: ' + code + '\n\n' +
+      'This code expires in 10 minutes.\n\n' +
+      'If you did not request this code, please ignore this email.\n\n' +
+      '— De La Salle Lipa Procurement Office · BiddersHub');
   } catch (e) {
-    console.error('_dispatchOTP: MailApp.sendEmail failed for ' + email + ':', e);
+    console.error('_dispatchOTP: _mail failed for ' + email + ':', e);
     return { success: false, message: 'Failed to send the verification email. Please try again.' };
   }
 
@@ -650,6 +667,7 @@ function submitLetterOfIntent(data) {
   const contactPerson = (data.contactPerson || '').trim();
   const contactEmail  = (data.contactEmail  || '').trim().toLowerCase();
   const contactNumber = (data.contactNumber || '').trim();
+  const bidTitle      = (data.bidTitle      || '').trim(); // optional — from bid detail modal
 
   if (!companyName)   throw new Error('Company name is required.');
   if (!contactPerson) throw new Error('Contact person is required.');
@@ -660,48 +678,45 @@ function submitLetterOfIntent(data) {
   if (sheet.getLastRow() === 0) { sheet.appendRow(LOI_HEADERS); _fmtHeader(sheet, '#1B5E20', LOI_HEADERS.length); }
 
   const now = new Date().toISOString();
-  sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, now]);
+  sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, bidTitle, now]);
 
-  const accreditationUrl = ScriptApp.getService().getUrl();
+  const ACCREDITATION_URL = 'https://vendorshub.dlsl.edu.ph/UniversofVendor/';
+
+  // Notify CPO — subject includes bid title + company name when submitted from a specific bid
+  const cpoSubject = bidTitle
+    ? bidTitle + ' — ' + companyName
+    : 'BiddersHub — New Letter of Intent: ' + companyName;
 
   // Auto-reply to submitter
   try {
-    MailApp.sendEmail({
-      to: contactEmail,
-      replyTo: 'cpd.office@dlsl.edu.ph',
-      subject: 'BiddersHub — Letter of Intent Received',
-      body:
-        'Dear ' + contactPerson + ',\n\n' +
-        'Thank you for your Letter of Intent to participate in procurement opportunities at De La Salle Lipa.\n\n' +
-        'We have received the following details:\n' +
-        '  Company Name   : ' + companyName   + '\n' +
-        '  Contact Person : ' + contactPerson + '\n' +
-        '  Contact Email  : ' + contactEmail  + '\n' +
-        '  Contact Number : ' + contactNumber + '\n\n' +
-        'To be eligible to submit a bid, your company must first complete vendor accreditation. ' +
-        'Please visit the link below to apply:\n\n' +
-        accreditationUrl + '\n\n' +
-        'Our team will review your submission and reach out to you within 3–5 business days. ' +
-        'For inquiries, you may email us at cpd.office@dlsl.edu.ph.\n\n' +
-        '— DLSL Central Procurement Office · BiddersHub',
-    });
+    _mail(contactEmail, 'BiddersHub — Letter of Intent Received',
+      'Dear ' + contactPerson + ',\n\n' +
+      'Thank you for your Letter of Intent to participate in procurement opportunities at De La Salle Lipa.\n\n' +
+      'We have received the following details:\n' +
+      '  Company Name   : ' + companyName   + '\n' +
+      '  Contact Person : ' + contactPerson + '\n' +
+      '  Contact Email  : ' + contactEmail  + '\n' +
+      '  Contact Number : ' + contactNumber + '\n\n' +
+      'To be eligible to submit a bid, your company must first complete vendor accreditation. ' +
+      'Please visit the link below to apply:\n\n' +
+      ACCREDITATION_URL + '\n\n' +
+      'Our team will review your submission and reach out to you within 3–5 business days. ' +
+      'For inquiries, you may email us at procurement.office@dlsl.edu.ph.\n\n' +
+      '— De La Salle Lipa Procurement Office · BiddersHub');
   } catch (e) { console.error('LOI auto-reply failed for ' + contactEmail + ':', e); }
 
   // Notify CPO office
   try {
-    MailApp.sendEmail({
-      to: 'cpd.office@dlsl.edu.ph',
-      subject: 'BiddersHub — New Letter of Intent: ' + companyName,
-      body:
-        'A new Letter of Intent has been submitted via BiddersHub.\n\n' +
-        '  Company Name   : ' + companyName   + '\n' +
-        '  Contact Person : ' + contactPerson + '\n' +
-        '  Contact Email  : ' + contactEmail  + '\n' +
-        '  Contact Number : ' + contactNumber + '\n' +
-        '  Submitted On   : ' + now           + '\n\n' +
-        'View all letters of intent in the LettersOfIntent sheet of the BiddersHub spreadsheet.\n\n' +
-        '— BiddersHub Automated Notification',
-    });
+    _mail('procurement.office@dlsl.edu.ph', cpoSubject,
+      'A new Letter of Intent has been submitted via BiddersHub.\n\n' +
+      (bidTitle ? '  Bid            : ' + bidTitle + '\n' : '') +
+      '  Company Name   : ' + companyName   + '\n' +
+      '  Contact Person : ' + contactPerson + '\n' +
+      '  Contact Email  : ' + contactEmail  + '\n' +
+      '  Contact Number : ' + contactNumber + '\n' +
+      '  Submitted On   : ' + now           + '\n\n' +
+      'View all letters of intent in the LettersOfIntent sheet of the BiddersHub spreadsheet.\n\n' +
+      '— BiddersHub Automated Notification');
   } catch (e) { console.error('LOI CPO notification failed:', e); }
 
   return { success: true };
@@ -709,12 +724,30 @@ function submitLetterOfIntent(data) {
 
 function _emailVendor(email, subject, bodyIntro) {
   try {
-    MailApp.sendEmail({
-      to: email,
-      subject: 'BiddersHub — ' + subject,
-      body: bodyIntro + '\n\n— DLSL Central Procurement Office · BiddersHub',
-    });
+    _mail(email, 'BiddersHub — ' + subject,
+      bodyIntro + '\n\n— De La Salle Lipa Procurement Office · BiddersHub');
   } catch (e) { console.error('_emailVendor failed for ' + email + ':', e); }
+}
+
+/** Staff sends a custom email to a vendor/LOI contact. */
+function sendEmailToVendor(token, to, subject, body) {
+  const user = requireAuth(token);
+  if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+  if (!to || !subject || !body) throw new Error('to, subject, and body are required.');
+  _mail(to, subject, body + '\n\n— De La Salle Lipa Procurement Office · BiddersHub');
+  _logRaw(user, 'EMAIL', 'LOI', to, 'Sent email: ' + subject);
+  return { success: true };
+}
+
+/** Central mailer — display name: De La Salle Lipa Procurement Office, reply-to: procurement.office@dlsl.edu.ph */
+function _mail(to, subject, body) {
+  MailApp.sendEmail({
+    to: to,
+    subject: subject,
+    body: body,
+    name: 'De La Salle Lipa Procurement Office',
+    replyTo: 'procurement.office@dlsl.edu.ph',
+  });
 }
 
 /**
