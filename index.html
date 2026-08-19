@@ -2,6 +2,7 @@
 <html>
 <head>
   <base target="_top">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -13,7 +14,7 @@
   <!-- ── TOP NAV ─────────────────────────────────────────── -->
   <nav class="topnav">
     <div class="topnav-inner">
-      <div class="brand" onclick="routeToView()" style="cursor:pointer;">
+      <div class="brand" onclick="goHome()" style="cursor:pointer;">
         <span class="brand-name">BiddersHub</span>
         <span class="brand-sub">DLSL Central Procurement Office</span>
       </div>
@@ -35,18 +36,6 @@
       <h1>Procurement Bidding Opportunities</h1>
       <p>A centralized, transparent register of De La Salle Lipa bidding opportunities — giving suppliers
          timely, self-service access to procurement information.</p>
-      <div class="register-strip" id="public-hero-stats"></div>
-    </div>
-  </div>
-
-  <!-- ── HERO RESULTS PANEL (below stat tabs) ───────────────── -->
-  <div id="hero-results-panel" class="hero-results-panel hidden">
-    <div class="container">
-      <div class="hero-results-header">
-        <span id="hero-results-title"></span>
-        <button class="hero-results-close" onclick="togglePublicFilter(PUBLIC_FILTER)">✕ Close</button>
-      </div>
-      <div id="hero-results-list"></div>
     </div>
   </div>
 
@@ -54,7 +43,13 @@
 
     <!-- ── PUBLIC BID BOARD ─────────────────────────────── -->
     <div id="view-public">
-      <div style="height:24px;"></div>
+      <div style="height:28px;"></div>
+
+      <!-- ── BID OPPORTUNITIES TABS ──────────────────────────── -->
+      <div class="pub-tab-row" id="pub-tab-bar" style="margin-bottom:10px;">
+        <!-- populated by renderPublicHeroStats() -->
+      </div>
+      <div class="pub-tab-panel hidden" id="pub-tab-content" style="margin-bottom:24px;"></div>
 
       <!-- ── OFFICE DETAILS ──────────────────────────────────── -->
       <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#f8fdf9 0%,#fff 100%);border-left:4px solid var(--accent);">
@@ -68,38 +63,13 @@
           </div>
           <div style="flex:1;min-width:200px;">
             <div style="font-size:12px;color:var(--ink-2);line-height:2;">
-              <div>📧 <a href="mailto:cpd.office@dlsl.edu.ph" style="color:var(--accent);text-decoration:none;font-weight:500;">cpd.office@dlsl.edu.ph</a></div>
+              <div>📧 <a href="mailto:procurement.office@dlsl.edu.ph" style="color:var(--accent);text-decoration:none;font-weight:500;">procurement.office@dlsl.edu.ph</a></div>
               <div style="margin-top:4px;font-size:11px;color:#9ca3af;">Office Hours: Mon–Fri, 8:00 AM – 5:00 PM</div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ── LETTER OF INTENT ──────────────────────────────── -->
-      <div class="card" style="margin-bottom:24px;">
-        <h3 style="margin-bottom:4px;">Submit a Letter of Intent</h3>
-        <p class="hint" style="margin-bottom:16px;">Interested in participating in a bid? Submit your Letter of Intent and our team will get in touch. A confirmation with a link to our Vendor Accreditation System will be sent to your email.</p>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div>
-            <label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
-            <input type="text" id="loi-company" placeholder="e.g. ABC Trading Corp.">
-          </div>
-          <div>
-            <label class="field-label">Contact Person <span style="color:var(--danger)">*</span></label>
-            <input type="text" id="loi-person" placeholder="Full name">
-          </div>
-          <div>
-            <label class="field-label">Contact Email <span style="color:var(--danger)">*</span></label>
-            <input type="email" id="loi-email" placeholder="your@email.com">
-          </div>
-          <div>
-            <label class="field-label">Contact Number <span style="color:var(--danger)">*</span></label>
-            <input type="tel" id="loi-number" placeholder="e.g. 09xx-xxx-xxxx">
-          </div>
-        </div>
-        <p id="loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
-        <button class="btn btn-primary" style="margin-top:4px;" onclick="submitLOIForm(this)">Submit Letter of Intent</button>
-      </div>
 
     </div>
 
@@ -125,12 +95,17 @@
 
     <!-- ── STAFF / CPD PORTAL ───────────────────────────── -->
     <div id="view-staff" class="hidden">
-      <h2>Procurement Staff Portal</h2>
+      <div class="admin-header">
+        <div>
+          <div class="admin-eyebrow">Central Procurement Office</div>
+          <div class="admin-title">Staff Management Portal</div>
+        </div>
+        <div id="admin-user-chip"></div>
+      </div>
       <div class="tabs" id="staff-tabs">
         <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">Bid Opportunities</button>
-        <button class="tab" data-tab="s-approvals" onclick="switchTab('staff','s-approvals')">Approvals</button>
+        <button class="tab" data-tab="s-loi" onclick="switchTab('staff','s-loi')">Submissions</button>
         <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')" style="display:none;">Vendor Accreditation</button>
-        <button class="tab" data-tab="s-inquiries" onclick="switchTab('staff','s-inquiries')">Inquiries</button>
         <button class="tab" data-tab="s-dashboard" onclick="switchTab('staff','s-dashboard')">KPI Dashboard</button>
         <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">Staff Users</button>
         <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">Audit Log</button>
@@ -142,7 +117,7 @@
         </div>
         <div id="staff-mybids-table"></div>
       </div>
-      <div id="staff-panel-s-approvals" class="tab-panel hidden"><div id="staff-approvals-table"></div></div>
+      <div id="staff-panel-s-loi" class="tab-panel hidden"><div id="staff-loi-table"></div></div>
       <div id="staff-panel-s-vendors" class="tab-panel hidden">
         <div class="toolbar">
           <select id="vendor-status-filter" onchange="loadVendorApplications()">
@@ -159,7 +134,6 @@
         </div>
         <div id="staff-vendors-table"></div>
       </div>
-      <div id="staff-panel-s-inquiries" class="tab-panel hidden"><div id="staff-inquiries-table"></div></div>
       <div id="staff-panel-s-dashboard" class="tab-panel hidden"><div id="staff-dashboard-content"></div></div>
       <div id="staff-panel-s-users" class="tab-panel hidden">
         <div class="toolbar" style="justify-content:flex-end;">
@@ -338,7 +312,7 @@
   <footer class="footer">
     BiddersHub — DLSL Central Procurement Office · Complies with the Data Privacy Act of 2012 (RA 10173)
     <span style="margin-left:18px;opacity:0.45;font-size:11px;">
-      <button onclick="openModal('modal-login')" style="background:none;border:none;color:inherit;cursor:pointer;font-size:11px;padding:0;text-decoration:underline;">Staff Access</button>
+      <button id="btn-staff-access" style="background:none;border:none;color:inherit;cursor:pointer;font-size:11px;padding:0;text-decoration:underline;">Staff Access</button>
     </span>
   </footer>
 </div>
@@ -437,15 +411,42 @@
   </div>
 </div>
 
+
+<!-- ── MODAL: LOI EMAIL ──────────────────────────────────── -->
+<div id="modal-loi-email" class="modal-overlay hidden">
+  <div class="modal" style="max-width:520px;">
+    <button class="modal-close" onclick="closeModal('modal-loi-email')">&times;</button>
+    <h3>Send Email</h3>
+    <div class="field">
+      <label>To</label>
+      <input type="text" id="loi-email-to" readonly style="background:var(--paper-2);color:var(--ink-faint);">
+    </div>
+    <div class="field">
+      <label>Subject *</label>
+      <input type="text" id="loi-email-subject" placeholder="e.g. Re: Letter of Intent — BiddersHub">
+    </div>
+    <div class="field">
+      <label>Message *</label>
+      <textarea id="loi-email-body" rows="7" placeholder="Type your message here…"></textarea>
+    </div>
+    <p id="loi-email-error" class="error-text" style="min-height:18px;"></p>
+    <div style="display:flex;gap:10px;margin-top:4px;">
+      <button class="btn btn-primary" onclick="sendLOIEmail(this)">Send Email</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-loi-email')">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL: BID EDITOR (staff) ─────────────────────────── -->
 <div id="modal-bid-editor" class="modal-overlay hidden">
   <div class="modal" style="max-width:560px;">
     <button class="modal-close" onclick="closeModal('modal-bid-editor')">&times;</button>
     <h3 id="bid-editor-title">New Bid Opportunity</h3>
     <input type="hidden" id="editor-bid-id">
-    <p class="hint" style="margin-bottom:14px;">Only the project title and submission deadline are posted publicly. All other details are coordinated directly by the CPO.</p>
     <div class="field"><label>Title *</label><input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project"></div>
+    <div class="field"><label>Category</label><select id="editor-category"><option value="">— Select category —</option></select></div>
     <div class="field"><label>Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
+    <div class="field"><label>Description</label><textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4"></textarea></div>
     <div id="bid-editor-error" class="error-text"></div>
     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
       <button class="btn btn-outline" onclick="previewBidEditor()">👁 Preview</button>
@@ -539,8 +540,8 @@
       <div class="field">
         <label>Role *</label>
         <select id="edituser-role">
-          <option value="cpd_admin">CPD Administrator</option>
-          <option value="cpd_officer">CPD Officer</option>
+          <option value="cpd_admin">Administrator</option>
+          <option value="cpd_officer">Officer</option>
           <option value="proponent">Proponent</option>
         </select>
       </div>
