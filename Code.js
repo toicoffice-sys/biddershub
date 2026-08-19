@@ -1095,7 +1095,7 @@ function publishBid(token, bidId) {
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
-  if (obj.Status !== 'Approved') throw new Error('Only approved bids can be published.');
+  if (!['Draft', 'PendingApproval', 'Approved'].includes(obj.Status)) throw new Error('This bid opportunity cannot be published.');
   const now = new Date().toISOString();
   obj.Status = 'Published';
   obj.PublishedOn = now;

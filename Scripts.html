@@ -1102,7 +1102,7 @@ async function saveBidEditor(submitAfter) {
     let id = bidId;
     if (bidId) { await gsRun('updateBid', SESSION.token, bidId, d); }
     else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
-    if (submitAfter) await gsRun('submitBidForApproval', SESSION.token, id);
+    if (submitAfter) await gsRun('publishBid', SESSION.token, id);
     closeModal('modal-bid-editor');
     toast('Bid opportunity saved.', 'success');
     loadMyBids();
