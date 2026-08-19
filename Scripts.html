@@ -335,9 +335,81 @@ async function awardLOIAction(loiId, company) {
 }
 
 async function revokeAwardAction(loiId, company) {
-  if (!await showConfirm('Undo the award for ' + (company || 'this submission') + '?\n\nThis will remove their Awarded status and allow re-evaluation.')) return;
-  try { await gsRun('revokeAward', SESSION.token, loiId); toast('Award revoked.', 'success'); loadLOI(); }
+  if (!await showConfirm('Undo the award for ' + (company || 'this submission') + '?\n\nThis action requires OTP verification and will remove their Awarded status.')) return;
+
+  // Send OTP to logged-in user's email
+  let sendResult;
+  try { sendResult = await gsRun('sendActionOTP', SESSION.token); }
+  catch (e) { toast(e.message || 'Failed to send verification code.', 'error'); return; }
+  if (!sendResult.success) { toast(sendResult.message || 'Failed to send verification code.', 'error'); return; }
+
+  // Show OTP modal
+  const otp = await showActionOTP(sendResult.maskedEmail, loiId, company);
+  if (otp === null) return; // cancelled
+
+  // Revoke with verified OTP
+  try { await gsRun('revokeAward', SESSION.token, loiId, otp); toast('Award successfully revoked.', 'success'); loadLOI(); }
   catch (e) { toast(e.message || 'Failed to revoke award.', 'error'); }
+}
+
+function showActionOTP(maskedEmail, loiId, company) {
+  return new Promise(resolve => {
+    const overlay  = document.getElementById('modal-action-otp');
+    const msgEl    = document.getElementById('action-otp-message');
+    const input    = document.getElementById('action-otp-input');
+    const errorEl  = document.getElementById('action-otp-error');
+    const btnOk    = document.getElementById('action-otp-confirm');
+    const btnCancel= document.getElementById('action-otp-cancel');
+    const btnResend= document.getElementById('action-otp-resend');
+
+    msgEl.textContent = 'A 6-digit verification code has been sent to ' + maskedEmail + '. Enter it below to confirm the undo.';
+    input.value = '';
+    errorEl.textContent = '';
+    btnResend.textContent = 'Resend Code';
+    btnResend.disabled = false;
+    openModal('modal-action-otp');
+    setTimeout(() => input.focus(), 100);
+
+    let resendTimer = null;
+    function startResendCooldown() {
+      let secs = 60;
+      btnResend.disabled = true;
+      clearInterval(resendTimer);
+      resendTimer = setInterval(() => {
+        secs--;
+        btnResend.textContent = 'Resend (' + secs + 's)';
+        if (secs <= 0) { clearInterval(resendTimer); btnResend.textContent = 'Resend Code'; btnResend.disabled = false; }
+      }, 1000);
+    }
+    startResendCooldown();
+
+    function cleanup() {
+      clearInterval(resendTimer);
+      btnOk.onclick = null; btnCancel.onclick = null; btnResend.onclick = null;
+      closeModal('modal-action-otp');
+    }
+
+    btnCancel.onclick = () => { cleanup(); resolve(null); };
+
+    btnOk.onclick = () => {
+      const code = input.value.trim();
+      if (code.length !== 6 || !/^\d+$/.test(code)) { errorEl.textContent = 'Enter a valid 6-digit code.'; return; }
+      cleanup();
+      resolve(code);
+    };
+
+    btnResend.onclick = async () => {
+      errorEl.textContent = '';
+      btnResend.disabled = true;
+      try {
+        const r = await gsRun('sendActionOTP', SESSION.token);
+        if (r.success) { startResendCooldown(); errorEl.textContent = ''; }
+        else { errorEl.textContent = r.message || 'Could not resend. Please wait.'; btnResend.disabled = false; }
+      } catch (e) { errorEl.textContent = e.message || 'Failed to resend.'; btnResend.disabled = false; }
+    };
+
+    input.onkeydown = e => { if (e.key === 'Enter') btnOk.click(); };
+  });
 }
 
 function openLOIDetail(idx) {

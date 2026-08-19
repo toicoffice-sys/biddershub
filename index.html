@@ -591,6 +591,26 @@
   </div>
 </div>
 
+<!-- ── MODAL: ACTION OTP VERIFICATION ─────────────────────────── -->
+<div id="modal-action-otp" class="modal-overlay hidden">
+  <div class="modal" style="max-width:420px;">
+    <h3 style="margin:0 0 6px;font-size:16px;color:var(--ink);">Confirm Action</h3>
+    <p id="action-otp-message" style="font-size:14px;color:var(--ink-soft);margin-bottom:16px;line-height:1.6;"></p>
+    <label style="font-size:12px;font-weight:600;color:var(--ink-soft);letter-spacing:.04em;text-transform:uppercase;">Verification Code</label>
+    <input type="text" id="action-otp-input" inputmode="numeric" maxlength="6" autocomplete="one-time-code"
+      placeholder="Enter 6-digit code"
+      style="margin-top:6px;margin-bottom:6px;font-size:1.3rem;letter-spacing:.18em;text-align:center;font-family:var(--mono);">
+    <p id="action-otp-error" style="font-size:12px;color:var(--ink-red);min-height:18px;margin-bottom:10px;"></p>
+    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;">
+      <button class="btn btn-sm btn-outline" id="action-otp-resend" style="font-size:12px;">Resend Code</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" id="action-otp-cancel">Cancel</button>
+        <button class="btn btn-danger" id="action-otp-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <?!= include('Scripts'); ?>
 </body>
 </html>

@@ -203,20 +203,65 @@ function awardLOI(token, loiId) {
   throw new Error('Submission not found.');
 }
 
-function revokeAward(token, loiId) {
+function sendActionOTP(token) {
   const user = requireAuth(token);
   if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+  const email   = user.email;
+  const propKey = 'act_otp_' + email;
+  const existing = PropertiesService.getScriptProperties().getProperty(propKey);
+  if (existing) {
+    try {
+      const d = JSON.parse(existing);
+      if (d.expiry - Date.now() > 540000) {
+        return { success: false, rateLimited: true, message: 'Please wait before requesting another code.' };
+      }
+    } catch (e) {}
+  }
+  const code   = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiry = Date.now() + 600000; // 10 minutes
+  PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify({ code, expiry }));
+  try {
+    _mail(email, 'BiddersHub — Action Confirmation Code',
+      'Your confirmation code is: ' + code + '\n\n' +
+      'This code is required to undo an award decision.\n' +
+      'It expires in 10 minutes.\n\n' +
+      'If you did not request this, please ignore this email.\n\n' +
+      '— De La Salle Lipa Central Procurement Office · BiddersHub');
+  } catch (e) {
+    return { success: false, message: 'Failed to send confirmation email. Please try again.' };
+  }
+  return { success: true, maskedEmail: _maskEmail(email) };
+}
+
+function revokeAward(token, loiId, otp) {
+  const user = requireAuth(token);
+  if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
+
+  // Verify action OTP
+  const propKey = 'act_otp_' + user.email;
+  const raw = PropertiesService.getScriptProperties().getProperty(propKey);
+  if (!raw) throw new Error('No confirmation code found. Please request a new code.');
+  let otpData;
+  try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code data. Please request a new code.'); }
+  if (Date.now() > otpData.expiry) {
+    PropertiesService.getScriptProperties().deleteProperty(propKey);
+    throw new Error('Code has expired. Please request a new one.');
+  }
+  if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
+  PropertiesService.getScriptProperties().deleteProperty(propKey);
+
+  // Revoke the award
   const sheet = getSheet(SH.LOI);
   _migrateLOIHeaders(sheet);
   const data = sheet.getDataRange().getValues();
   const h = data[0];
-  const idIdx = h.indexOf('LOIID');
+  const idIdx    = h.indexOf('LOIID');
   const statusIdx = h.indexOf('Status');
   if (statusIdx === -1) throw new Error('Status column not found.');
   for (let i = 1; i < data.length; i++) {
     if (data[i][idIdx] === loiId) {
       sheet.getRange(i + 1, statusIdx + 1).setValue('');
-      _logRaw(user, 'UPDATE', 'LOI', loiId, 'Award revoked for LOI submission');
+      _logRaw(user, 'UPDATE', 'LOI', loiId, 'Award revoked (OTP-verified)');
       return { success: true };
     }
   }
