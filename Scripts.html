@@ -11,6 +11,8 @@ let EDITOR_DOCS = {};
 let REVISION_DOCS = {};
 let SUBMISSION_DOCS = {};
 let CURRENT_BID_ID = null;
+let PUBLIC_BIDS = [];
+let PUBLIC_FILTER = null; // null = all, 'open' = Published, 'awarded' = Closed+Awarded
 
 // ── GOOGLE.SCRIPT.RUN PROMISE WRAPPER ───────────────────────────
 function gsRun(fnName, ...args) {
@@ -254,8 +256,10 @@ async function loadPublicBoard() {
       category: document.getElementById('public-category-filter').value,
     };
     const bids = await gsRun('getPublicBidBoard', filters);
-    renderBidGrid(grid, bids, false);
+    PUBLIC_BIDS = bids;
+    PUBLIC_FILTER = null;
     renderPublicHeroStats(bids);
+    applyPublicFilter();
   } catch (e) { grid.innerHTML = '<p class="error-text">Failed to load bid opportunities.</p>'; }
 }
 
@@ -263,13 +267,49 @@ function renderPublicHeroStats(bids) {
   const published = bids.filter(b => b.status === 'Published').length;
   const awarded = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
   document.getElementById('public-hero-stats').innerHTML = `
-    <div class="register-item"><div class="num">${published}</div><div class="label">Open Opportunities</div></div>
-    <div class="register-item"><div class="num">${awarded}</div><div class="label">Awarded</div></div>`;
+    <div class="register-item register-item-btn" id="stat-open" onclick="togglePublicFilter('open')" title="Show open bid opportunities">
+      <div class="num">${published}</div>
+      <div class="label">Open Opportunities ▾</div>
+    </div>
+    <div class="register-item register-item-btn" id="stat-awarded" onclick="togglePublicFilter('awarded')" title="Show awarded bids">
+      <div class="num">${awarded}</div>
+      <div class="label">Awarded ▾</div>
+    </div>`;
 }
 
-function renderBidGrid(container, bids, vendorMode) {
-  if (!bids.length) { container.innerHTML = '<div class="empty-state">No bid opportunities found.</div>'; return; }
-  container.innerHTML = bids.map(b => `
+function togglePublicFilter(type) {
+  PUBLIC_FILTER = PUBLIC_FILTER === type ? null : type;
+  applyPublicFilter();
+  // scroll to bid grid
+  const grid = document.getElementById('public-bid-grid');
+  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function applyPublicFilter() {
+  const grid = document.getElementById('public-bid-grid');
+  // update active state on stat items
+  ['open','awarded'].forEach(type => {
+    const el = document.getElementById('stat-' + type);
+    if (el) el.classList.toggle('register-item-active', PUBLIC_FILTER === type);
+  });
+  let filtered;
+  if (PUBLIC_FILTER === 'open') {
+    filtered = PUBLIC_BIDS.filter(b => b.status === 'Published');
+  } else if (PUBLIC_FILTER === 'awarded') {
+    filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
+  } else {
+    filtered = PUBLIC_BIDS;
+  }
+  const label = PUBLIC_FILTER === 'open' ? 'Open Opportunities'
+              : PUBLIC_FILTER === 'awarded' ? 'Awarded Bids'
+              : null;
+  renderBidGrid(grid, filtered, false, label);
+}
+
+function renderBidGrid(container, bids, vendorMode, filterLabel) {
+  const header = filterLabel ? `<div style="font-size:13px;font-weight:600;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid var(--accent);">🔍 ${escapeHtml(filterLabel)} <button onclick="togglePublicFilter(PUBLIC_FILTER)" style="background:none;border:none;font-size:11px;color:#9ca3af;cursor:pointer;margin-left:6px;text-decoration:underline;">Clear filter</button></div>` : '';
+  if (!bids.length) { container.innerHTML = header + '<div class="empty-state">No bid opportunities found.</div>'; return; }
+  container.innerHTML = header + bids.map(b => `
     <div class="card bid-card" onclick="openBidDetail('${b.bidId}')">
       <span class="stamp ${stampClass(b.status)}">${escapeHtml(b.status)}${b.outcome ? ' · ' + escapeHtml(b.outcome) : ''}</span>
       <div class="control-no" style="margin-top:6px;">${escapeHtml(b.referenceNo || '')}</div>
