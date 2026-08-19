@@ -448,15 +448,16 @@ function applyPublicFilter() {
   const start = (PUBLIC_PAGE - 1) * PUBLIC_PAGE_SIZE;
   const page  = filtered.slice(start, start + PUBLIC_PAGE_SIZE);
 
-  const listHtml = page.map(b => `
-    <div class="bid-list-item" onclick="openBidDetail('${b.bidId}')">
+  const listHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">` +
+    page.map(b => `
+    <div class="bid-list-item" style="margin-bottom:0;" onclick="openBidDetail('${b.bidId}')">
       <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
       <div class="bli-body">
         <div class="bli-title">${escapeHtml(b.title)}</div>
         <div class="bli-meta">${escapeHtml(b.description || '—')}</div>
       </div>
       <div class="bli-arrow">›</div>
-    </div>`).join('');
+    </div>`).join('') + `</div>`;
 
   const pagerHtml = totalPages > 1 ? `
     <div class="pub-pager">
