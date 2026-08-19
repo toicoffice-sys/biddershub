@@ -1041,6 +1041,9 @@ function openBidEditor(bidId) {
   document.getElementById('bid-editor-error').textContent = '';
   document.getElementById('editor-bid-id').value = bidId || '';
   document.getElementById('bid-editor-title').textContent = bidId ? 'Edit Bid Opportunity' : 'New Bid Opportunity';
+  document.getElementById('editor-bid-status').value = '';
+  const toggleBtn = document.getElementById('editor-publish-toggle-btn');
+  toggleBtn.textContent = 'Publish';
   if (bidId) {
     gsRun('getMyBids', SESSION.token).then(res => {
       const b = res.bids.find(x => x.BidID === bidId);
@@ -1049,6 +1052,8 @@ function openBidEditor(bidId) {
       document.getElementById('editor-category').value = b.Category || '';
       document.getElementById('editor-deadline').value = (b.SubmissionDeadline || '').slice(0, 16);
       document.getElementById('editor-description').value = b.Description || '';
+      document.getElementById('editor-bid-status').value = b.Status || '';
+      toggleBtn.textContent = b.Status === 'Published' ? 'Unpublish' : 'Publish';
     });
   } else {
     ['editor-title', 'editor-deadline', 'editor-description'].forEach(id => document.getElementById(id).value = '');

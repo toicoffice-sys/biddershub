@@ -450,6 +450,7 @@
     <button class="modal-close" onclick="closeModal('modal-bid-editor')">&times;</button>
     <h3 id="bid-editor-title">New Bid Opportunity</h3>
     <input type="hidden" id="editor-bid-id">
+    <input type="hidden" id="editor-bid-status">
     <div class="field"><label>Title *</label><input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project"></div>
     <div class="field"><label>Category</label><select id="editor-category"><option value="">— Select category —</option></select></div>
     <div class="field"><label>Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
@@ -458,8 +459,7 @@
     <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
       <button class="btn btn-outline" onclick="previewBidEditor()">👁 Preview</button>
       <button class="btn btn-outline" onclick="saveBidEditor()">Save Draft</button>
-      <button class="btn btn-primary" onclick="saveBidEditor('publish')">Published</button>
-      <button class="btn btn-outline" onclick="saveBidEditor('unpublish')">Unpublished</button>
+      <button class="btn btn-primary" id="editor-publish-toggle-btn" onclick="saveBidEditor(document.getElementById('editor-bid-status').value === 'Published' ? 'unpublish' : 'publish')">Publish</button>
     </div>
   </div>
 </div>
