@@ -107,6 +107,8 @@
   .btn-ghost:hover { background: rgba(255,255,255,.1); }
   .btn-outline { background: var(--paper); color: var(--g700); border: 1px solid var(--g700); }
   .btn-outline:hover { background: var(--g100); }
+  .btn-muted { background: var(--paper); color: var(--ink-faint); border: 1px solid var(--line); }
+  .btn-muted:hover { background: var(--paper-2); color: var(--ink-soft); }
   .btn-danger { background: var(--ink-red); color: #fff; }
   .btn-danger:hover { filter: brightness(1.1); }
   .btn-sm { padding: 6px 12px; font-size: .78rem; }
@@ -141,35 +143,32 @@
   .hero h1 { font-size: 1.85rem; color: #fff; max-width: 720px; }
   .hero p { opacity: .85; max-width: 620px; font-size: .96rem; }
 
-  .register-strip {
-    display: flex; gap: 14px; margin-top: 28px; padding-bottom: 32px; overflow-x: auto;
+  /* ── Bid Opportunities Minimalist Tabs ── */
+  .pub-tab-row { display: flex; border-bottom: 2px solid #d4d8d0; gap: 0; }
+  .pub-tab-card {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 22px 12px; border: none; background: none;
+    border-bottom: 3px solid transparent; margin-bottom: -2px;
+    cursor: pointer; font-family: var(--sans); font-size: 14px;
+    font-weight: 600; color: #8a9489;
+    transition: color .15s, border-color .15s;
+    user-select: none;
   }
-  .register-item {
-    flex: 1; min-width: 160px; padding: 18px 22px 20px;
-    border: 1.5px solid rgba(255,255,255,.22);
-    border-radius: 14px;
-    background: rgba(255,255,255,.08);
-    transition: background .18s, border-color .18s, transform .13s, box-shadow .18s;
+  .pub-tab-card:hover { color: var(--g700); }
+  .pub-tab-card.active { color: var(--g700); border-bottom-color: var(--g600); }
+  .pub-tab-card .ptc-count {
+    font-family: var(--mono); font-size: 11px; font-weight: 700;
+    background: #e4e8e2; color: #6b7280; border-radius: 20px; padding: 1px 8px;
+    transition: background .15s, color .15s;
   }
-  .register-item .stat-icon { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: rgba(255,255,255,.55); margin-bottom: 10px; display:flex; align-items:center; gap:5px; }
-  .register-item .stat-dot { width:7px; height:7px; border-radius:50%; display:inline-block; flex-shrink:0; }
-  .register-item .num { font-family: var(--mono); font-size: 2.2rem; font-weight: 700; color: #fff; line-height: 1; }
-  .register-item .label { font-size: .82rem; font-weight: 600; color: rgba(255,255,255,.85); margin-top: 5px; }
-  .register-item .stat-hint { font-size: .68rem; color: rgba(255,255,255,.4); margin-top: 8px; letter-spacing:.02em; }
-  .register-item-btn { cursor: pointer; user-select: none; }
-  .register-item-btn:hover { background: rgba(255,255,255,.15); border-color: rgba(255,255,255,.42); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(0,0,0,.18); }
-  .register-item-active { background: #fff !important; border-color: #fff !important; transform: translateY(-2px) !important; box-shadow: 0 8px 24px rgba(0,0,0,.2) !important; }
-  .register-item-active .stat-icon,
-  .register-item-active .num,
-  .register-item-active .label,
-  .register-item-active .stat-hint { color: var(--g600) !important; }
-
-  /* ── Hero Results Panel ── */
-  .hero-results-panel { background:#fff; border-bottom:2px solid #e5e7eb; padding:20px 0 28px; box-shadow:0 6px 20px rgba(0,0,0,.08); }
-  .hero-results-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
-  .hero-results-header span { font-size:14px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:.6px; }
-  .hero-results-close { background:none; border:1px solid #e5e7eb; border-radius:6px; padding:4px 12px; font-size:12px; color:#6b7280; cursor:pointer; transition:background .12s; }
-  .hero-results-close:hover { background:#f3f4f6; }
+  .pub-tab-card.active .ptc-count { background: var(--g100); color: var(--g700); }
+  .pub-tab-panel { background: #fff; border: 1px solid #d4d8d0; border-top: none; border-radius: 0 0 10px 10px; padding: 20px; }
+  .pub-tab-panel.hidden { display: none; }
+  .pub-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
+  .pub-pager-info { font-size: 12px; color: var(--ink-faint); }
+  .pub-pager-btn { background: none; border: 1px solid #d1d5db; border-radius: 6px; padding: 5px 14px; font-size: 13px; font-weight: 600; color: var(--ink-soft); cursor: pointer; transition: background .12s, border-color .12s; }
+  .pub-pager-btn:hover:not(:disabled) { background: var(--g100); border-color: var(--g600); color: var(--g700); }
+  .pub-pager-btn:disabled { opacity: .35; cursor: default; }
 
   /* ── Professional Bid List ── */
   .bid-list-item { display:flex; align-items:center; gap:16px; padding:14px 18px; border:1px solid #e5e7eb; border-radius:10px; margin-bottom:8px; background:#fff; cursor:pointer; transition:border-color .15s, box-shadow .15s; }
@@ -229,25 +228,35 @@
   .bid-card h3 { font-size: 1.04rem; margin-bottom: 6px; line-height: 1.3; }
   .bid-card .meta { font-size: .78rem; color: var(--ink-faint); margin-bottom: 8px; }
   .bid-card .desc { font-size: .86rem; color: var(--ink-soft); }
-  .bid-card .stamp { position: absolute; top: 16px; right: 14px; }
+  .bid-card .stamp { position: absolute; top: 14px; right: 14px; }
 
   .control-no {
     font-family: var(--mono); font-size: .74rem; color: var(--ink-faint); letter-spacing: .02em;
   }
 
-  /* ── Office stamps (status) ────────────────────────── */
+  /* ── Status pills ─────────────────────────────────── */
   .stamp {
-    display: inline-block; font-family: var(--mono); font-size: .66rem; font-weight: 700;
-    letter-spacing: .1em; text-transform: uppercase; padding: 3px 9px;
-    border: 1.5px solid currentColor; border-radius: 3px; transform: rotate(-2deg);
-    background: rgba(255,255,255,.4);
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--sans); font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 4px; white-space: nowrap; letter-spacing: .01em;
   }
-  .stamp-blue  { color: var(--ink-blue);  background: rgba(51,80,110,.07); }
-  .stamp-green { color: var(--ink-green); background: rgba(31,92,52,.07); }
-  .stamp-red   { color: var(--ink-red);   background: rgba(140,58,43,.07); }
-  .stamp-grey  {
-    color: var(--ink-grey); border-style: dashed; background: transparent; transform: rotate(0deg);
-  }
+  .stamp::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .stamp-blue  { color: var(--ink-blue);  background: rgba(51,80,110,.09); }
+  .stamp-blue::before  { background: var(--ink-blue); }
+  .stamp-green { color: var(--ink-green); background: rgba(31,92,52,.09); }
+  .stamp-green::before { background: var(--ink-green); }
+  .stamp-red   { color: var(--ink-red);   background: rgba(140,58,43,.09); }
+  .stamp-red::before   { background: var(--ink-red); }
+  .stamp-grey  { color: var(--ink-grey);  background: rgba(107,107,96,.09); }
+  .stamp-grey::before  { background: var(--ink-grey); }
+
+  /* ── Admin portal header ──────────────────────────── */
+  .admin-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 0 16px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+  .admin-eyebrow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-faint); margin-bottom: 3px; }
+  .admin-title { font-size: 20px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+  .admin-chip { display: flex; align-items: center; gap: 10px; }
+  .admin-chip-name { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+  .admin-chip-role { font-size: 11px; font-weight: 600; background: var(--g100); color: var(--g700); border-radius: 4px; padding: 3px 9px; letter-spacing: .02em; }
 
   table { width: 100%; border-collapse: collapse; font-size: .87rem; }
   th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -256,11 +265,13 @@
   td .control-no { display: block; margin-bottom: 2px; }
 
   /* ── Tabs ─────────────────────────────────────────── */
-  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 20px; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 24px; flex-wrap: wrap; }
   .tab {
-    padding: 10px 14px; font-size: .87rem; font-weight: 600; color: var(--ink-faint);
-    border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none;
+    padding: 10px 16px; font-size: .84rem; font-weight: 600; color: var(--ink-faint);
+    border: none; border-bottom: 2px solid transparent; margin-bottom: -2px;
+    background: none; transition: color .15s, border-color .15s;
   }
+  .tab:hover { color: var(--ink-soft); }
   .tab.active { color: var(--g800); border-bottom-color: var(--g700); }
 
   /* ── Modal ────────────────────────────────────────── */
@@ -314,8 +325,7 @@
   @media (max-width: 640px) {
     .hero h1 { font-size: 1.4rem; }
     .stat-grid { grid-template-columns: repeat(2, 1fr); }
-    .register-strip { flex-wrap: wrap; }
-    .register-item { min-width: 45%; border-bottom: 1px solid rgba(255,255,255,.14); }
+    .pub-tab-card { padding: 10px 14px 12px; font-size: 13px; }
     .flow-steps { flex-direction: column; }
     .flow-step { padding: 14px 0; border-bottom: 1px dashed var(--line); }
     .flow-step:first-child, .flow-step:last-child { padding-left: 0; padding-right: 0; }

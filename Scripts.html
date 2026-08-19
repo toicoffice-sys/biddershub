@@ -327,7 +327,7 @@ function renderLOITable() {
 function loiGoPage(page) { LOI_PAGE = page; renderLOITable(); }
 
 async function awardLOIAction(loiId, company) {
-  if (!await showConfirm('Mark "' + (company || 'this submission') + '" as Awarded?')) return;
+  if (!await showConfirm('Award this bid to ' + (company || 'this company') + '?\n\nThis declares them as the winning bidder for this opportunity.')) return;
   try { await gsRun('awardLOI', SESSION.token, loiId); toast('Marked as Awarded.', 'success'); loadLOI(); }
   catch (e) { toast(e.message || 'Failed to award.', 'error'); }
 }
