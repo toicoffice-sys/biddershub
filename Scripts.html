@@ -107,6 +107,11 @@ async function handleBidStatusChange(select) {
   if (!bidId) return; // new bid — no immediate action
 
   if (chosen === 'closed' && currentStatus !== 'Closed') {
+    if (!['Published'].includes(currentStatus)) {
+      toast('Bid must be Published before it can be closed.', 'error');
+      select.value = 'open';
+      return;
+    }
     // Send OTP then show modal
     select.disabled = true;
     let sendRes;
@@ -1281,11 +1286,10 @@ function openBidEditor(bidId) {
       document.getElementById('editor-description').value = b.Description || '';
       document.getElementById('editor-bid-status').value = b.Status || '';
       toggleBtn.textContent = b.Status === 'Published' ? 'Unpublish' : 'Publish';
-      // Show Bid Status selector for Published/Closed bids (not awarded)
-      const showStatusField = ['Published', 'Closed'].includes(b.Status) && b.Outcome !== 'Awarded';
+      // Always show Bid Status for existing bids (except awarded)
       const statusRow = document.getElementById('editor-submission-status-row');
       const statusSel = document.getElementById('editor-submission-status');
-      statusRow.style.display = showStatusField ? 'block' : 'none';
+      statusRow.style.display = b.Outcome === 'Awarded' ? 'none' : 'block';
       statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
     });
   } else {
