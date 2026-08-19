@@ -351,7 +351,7 @@ async function revokeAwardAction(loiId, company) {
   if (!sendResult.success) { toast(sendResult.message || 'Failed to send verification code.', 'error'); return; }
 
   // Show OTP modal
-  const otp = await showActionOTP(sendResult.maskedEmail, loiId, company);
+  const otp = await showActionOTP(sendResult.maskedEmail, 'A 6-digit verification code has been sent to ' + sendResult.maskedEmail + '. Enter it below to confirm the undo.');
   if (otp === null) return; // cancelled
 
   // Revoke with verified OTP
@@ -366,7 +366,7 @@ async function revokeAwardAction(loiId, company) {
   catch (e) { toast(e.message || 'Failed to revoke award.', 'error'); }
 }
 
-function showActionOTP(maskedEmail, loiId, company) {
+function showActionOTP(maskedEmail, message) {
   return new Promise(resolve => {
     const overlay  = document.getElementById('modal-action-otp');
     const msgEl    = document.getElementById('action-otp-message');
@@ -376,7 +376,7 @@ function showActionOTP(maskedEmail, loiId, company) {
     const btnCancel= document.getElementById('action-otp-cancel');
     const btnResend= document.getElementById('action-otp-resend');
 
-    msgEl.textContent = 'A 6-digit verification code has been sent to ' + maskedEmail + '. Enter it below to confirm the undo.';
+    msgEl.textContent = message || ('A 6-digit verification code has been sent to ' + maskedEmail + '. Enter it below to proceed.');
     input.value = '';
     errorEl.textContent = '';
     btnResend.textContent = 'Resend Code';
@@ -1286,7 +1286,16 @@ async function saveBidEditor(action) {
     let id = bidId;
     if (bidId) { await gsRun('updateBid', SESSION.token, bidId, d); }
     else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
-    if (action === 'publish') await gsRun('publishBid', SESSION.token, id);
+    if (action === 'publish') {
+      // Require OTP before publishing
+      let sendRes;
+      try { sendRes = await gsRun('sendActionOTP', SESSION.token); }
+      catch (e) { errEl.textContent = e.message || 'Failed to send verification code.'; return; }
+      if (!sendRes.success) { errEl.textContent = sendRes.message || 'Failed to send verification code.'; return; }
+      const otp = await showActionOTP(sendRes.maskedEmail, 'A 6-digit verification code has been sent to ' + sendRes.maskedEmail + '. Enter it to confirm publishing this bid.');
+      if (otp === null) return; // cancelled
+      await gsRun('publishBid', SESSION.token, id, otp);
+    }
     else if (action === 'unpublish') await gsRun('unpublishBid', SESSION.token, id);
     else {
       // Handle Bid Status toggle (Open ↔ Closed) for Published/Closed bids

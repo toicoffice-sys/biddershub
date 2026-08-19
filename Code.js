@@ -1284,19 +1284,35 @@ function rejectBid(token, bidId, notes) {
   return { success: true };
 }
 
-function publishBid(token, bidId) {
+function publishBid(token, bidId, otp) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
+
+  // Verify action OTP
+  const propKey = 'act_otp_' + user.email;
+  const raw = PropertiesService.getScriptProperties().getProperty(propKey);
+  if (!raw) throw new Error('No verification code found. Please request a new code.');
+  let otpData;
+  try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code. Please request a new code.'); }
+  if (Date.now() > otpData.expiry) {
+    PropertiesService.getScriptProperties().deleteProperty(propKey);
+    throw new Error('Code has expired. Please request a new one.');
+  }
+  if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
+  PropertiesService.getScriptProperties().deleteProperty(propKey);
+
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
-  if (!['Draft', 'PendingApproval', 'Approved'].includes(obj.Status)) throw new Error('This bid opportunity cannot be published.');
+  if (!['Draft', 'PendingApproval', 'Approved', 'Closed'].includes(obj.Status)) throw new Error('This bid opportunity cannot be published.');
   const now = new Date().toISOString();
   obj.Status = 'Published';
-  obj.PublishedOn = now;
+  obj.PublishedOn = obj.PublishedOn || now;
+  obj.Outcome = '';
+  obj.ClosedOn = '';
   obj.LastModified = now;
   _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
-  _logRaw(user, 'PUBLISH', 'BidOpportunity', bidId, 'Published to public bid board');
+  _logRaw(user, 'PUBLISH', 'BidOpportunity', bidId, 'Published to public bid board (OTP-verified)');
   _cacheClear();
   return { success: true };
 }
