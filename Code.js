@@ -1023,7 +1023,7 @@ function updateBid(token, bidId, d) {
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
   if (!isCPD(user)) throw new Error('Only CPD staff can edit a bid opportunity.');
-  if (!['Draft', 'PendingApproval'].includes(obj.Status)) throw new Error('This bid opportunity can no longer be edited.');
+  if (!['Draft', 'PendingApproval', 'Approved', 'Published'].includes(obj.Status)) throw new Error('This bid opportunity can no longer be edited.');
 
   if (d.title !== undefined) obj.Title = d.title.trim();
   if (d.description !== undefined) obj.Description = d.description.trim();
@@ -1102,6 +1102,23 @@ function publishBid(token, bidId) {
   obj.LastModified = now;
   _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
   _logRaw(user, 'PUBLISH', 'BidOpportunity', bidId, 'Published to public bid board');
+  _cacheClear();
+  return { success: true };
+}
+
+function unpublishBid(token, bidId) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const found = _getBidRow(bidId);
+  if (!found) throw new Error('Bid opportunity not found.');
+  const { sheet, rowIndex, obj } = found;
+  if (obj.Status !== 'Published') throw new Error('Only published bids can be unpublished.');
+  const now = new Date().toISOString();
+  obj.Status = 'Draft';
+  obj.PublishedOn = '';
+  obj.LastModified = now;
+  _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
+  _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Unpublished bid opportunity');
   _cacheClear();
   return { success: true };
 }

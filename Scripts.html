@@ -963,25 +963,8 @@ async function loadMyBids() {
 
 function bidActionsHtml(b) {
   const cpd = SESSION.user.role === 'cpd_admin' || SESSION.user.role === 'cpd_officer';
-  const btns = [];
-  btns.push(`<button class="btn btn-sm btn-muted" onclick="openBidDetail('${b.BidID}')">View</button>`);
-  if (b.Status === 'Draft' && cpd) {
-    btns.push(`<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`);
-  }
-  if (b.Status === 'PendingApproval' && cpd) {
-    btns.push(`<button class="btn btn-sm btn-primary" onclick="approveBidAction('${b.BidID}')">Approve</button>`);
-    btns.push(`<button class="btn btn-sm btn-danger" onclick="rejectBidAction('${b.BidID}')">Reject</button>`);
-  }
-  if (b.Status === 'Approved' && cpd) {
-    btns.push(`<button class="btn btn-sm btn-primary" onclick="publishBidAction('${b.BidID}')">Publish</button>`);
-  }
-  if (b.Status === 'Published' && cpd) {
-    btns.push(`<button class="btn btn-sm btn-outline" onclick="closeBidAction('${b.BidID}')">Close</button>`);
-  }
-  if (['Published', 'Closed'].includes(b.Status) && cpd) {
-    btns.push(`<button class="btn btn-sm btn-outline" onclick="viewSubmissions('${b.BidID}')">View Submissions</button>`);
-  }
-  return btns.join(' ') || '<span class="hint">—</span>';
+  if (!cpd) return '<span class="hint">—</span>';
+  return `<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`;
 }
 
 async function viewSubmissions(bidId) {
@@ -1108,7 +1091,7 @@ async function handleEditorDocFile(docKey, inputEl) {
   }
 }
 
-async function saveBidEditor(submitAfter) {
+async function saveBidEditor(action) {
   const errEl = document.getElementById('bid-editor-error');
   errEl.textContent = '';
   const bidId = document.getElementById('editor-bid-id').value;
@@ -1125,7 +1108,8 @@ async function saveBidEditor(submitAfter) {
     let id = bidId;
     if (bidId) { await gsRun('updateBid', SESSION.token, bidId, d); }
     else { const res = await gsRun('createBid', SESSION.token, d); id = res.bidId; }
-    if (submitAfter) await gsRun('publishBid', SESSION.token, id);
+    if (action === 'publish') await gsRun('publishBid', SESSION.token, id);
+    else if (action === 'unpublish') await gsRun('unpublishBid', SESSION.token, id);
     closeModal('modal-bid-editor');
     toast('Bid opportunity saved.', 'success');
     loadMyBids();
