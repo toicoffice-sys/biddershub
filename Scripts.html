@@ -283,7 +283,7 @@ function renderLOITable() {
       <td style="white-space:nowrap;display:flex;gap:6px;">
         <button class="btn btn-sm btn-outline" data-idx="${start + i}" onclick="openLOIDetail(+this.dataset.idx)">View</button>
         <button class="btn btn-sm btn-outline" data-email="${escapeHtml(r.contactEmail)}" data-company="${escapeHtml(r.companyName)}" onclick="openLOIEmail(this.dataset.email,this.dataset.company)">Send Email</button>
-        ${r.status !== 'Awarded' ? `<button class="btn btn-sm btn-primary" style="padding:4px 8px;" title="Award this submission" data-loi="${escapeHtml(r.loiId)}" data-company="${escapeHtml(r.companyName)}" onclick="awardLOIAction(this.dataset.loi, this.dataset.company)">🏆</button>` : ''}
+        ${r.status !== 'Awarded' ? `<button class="btn btn-sm" style="padding:4px 8px;background:#fef3c7;border:1px solid #f59e0b;color:#92400e;" title="Award this submission" data-loi="${escapeHtml(r.loiId)}" data-company="${escapeHtml(r.companyName)}" onclick="awardLOIAction(this.dataset.loi, this.dataset.company)">🏆</button>` : ''}
       </td>
     </tr>`;}).join('')}</tbody>
   </table>`;
