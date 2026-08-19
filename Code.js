@@ -1218,7 +1218,7 @@ function updateBid(token, bidId, d) {
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
   if (!isCPD(user)) throw new Error('Only CPD staff can edit a bid opportunity.');
-  if (!['Draft', 'PendingApproval', 'Approved', 'Published'].includes(obj.Status)) throw new Error('This bid opportunity can no longer be edited.');
+  if (!['Draft', 'PendingApproval', 'Approved', 'Published', 'Closed'].includes(obj.Status)) throw new Error('This bid opportunity can no longer be edited.');
 
   if (d.title !== undefined) obj.Title = d.title.trim();
   if (d.description !== undefined) obj.Description = d.description.trim();
