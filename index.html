@@ -458,7 +458,7 @@
     <div class="field"><label>Description</label><textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4"></textarea></div>
     <div class="field" id="editor-submission-status-row" style="display:none;">
       <label>Bid Status</label>
-      <select id="editor-submission-status">
+      <select id="editor-submission-status" onchange="handleBidStatusChange(this)">
         <option value="open">Open — Accepting Submissions</option>
         <option value="closed">Closed — No Longer Accepting</option>
       </select>

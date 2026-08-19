@@ -99,6 +99,52 @@ function showPrompt(message, placeholder) {
     setTimeout(() => input.focus(), 50);
   });
 }
+async function handleBidStatusChange(select) {
+  const bidId = document.getElementById('editor-bid-id').value;
+  const currentStatus = document.getElementById('editor-bid-status').value;
+  const chosen = select.value;
+
+  if (!bidId) return; // new bid — no immediate action
+
+  if (chosen === 'closed' && currentStatus !== 'Closed') {
+    // Send OTP then show modal
+    select.disabled = true;
+    let sendRes;
+    try { sendRes = await gsRun('sendActionOTP', SESSION.token); }
+    catch (e) { toast(e.message || 'Failed to send verification code.', 'error'); select.value = 'open'; select.disabled = false; return; }
+    select.disabled = false;
+    if (!sendRes.success) { toast(sendRes.message || 'Failed to send code.', 'error'); select.value = 'open'; return; }
+
+    const otp = await showActionOTP(sendRes.maskedEmail,
+      'A verification code was sent to ' + sendRes.maskedEmail + '. Enter it to close this bid opportunity.');
+    if (otp === null) { select.value = 'open'; return; } // cancelled — revert
+
+    try {
+      await gsRun('setBidSubmissionStatus', SESSION.token, bidId, true, otp);
+      document.getElementById('editor-bid-status').value = 'Closed';
+      toast('Bid status set to Closed.', 'success');
+      PUBLIC_BIDS = []; loadPublicBoard(); loadMyBids();
+    } catch (e) {
+      toast(e.message || 'Failed to close bid.', 'error');
+      select.value = 'open'; // revert on failure
+    }
+
+  } else if (chosen === 'open' && currentStatus === 'Closed') {
+    // Reopen immediately — no OTP
+    try {
+      await gsRun('setBidSubmissionStatus', SESSION.token, bidId, false);
+      document.getElementById('editor-bid-status').value = 'Published';
+      // Also update the Publish/Unpublish toggle button
+      document.getElementById('editor-publish-toggle-btn').textContent = 'Unpublish';
+      toast('Bid status set to Open.', 'success');
+      PUBLIC_BIDS = []; loadPublicBoard(); loadMyBids();
+    } catch (e) {
+      toast(e.message || 'Failed to reopen bid.', 'error');
+      select.value = 'closed'; // revert on failure
+    }
+  }
+}
+
 function showPublishPassword() {
   return new Promise(resolve => {
     const input  = document.getElementById('publish-pwd-input');
@@ -1320,19 +1366,7 @@ async function saveBidEditor(action) {
       }
     }
     else if (action === 'unpublish') await gsRun('unpublishBid', SESSION.token, id);
-    else {
-      // Handle Bid Status toggle (Open ↔ Closed) for Published/Closed bids
-      const statusRow = document.getElementById('editor-submission-status-row');
-      if (statusRow && statusRow.style.display !== 'none') {
-        const selectedStatus = document.getElementById('editor-submission-status').value;
-        const currentStatus  = document.getElementById('editor-bid-status').value;
-        if (selectedStatus === 'closed' && currentStatus !== 'Closed') {
-          await gsRun('setBidSubmissionStatus', SESSION.token, id, true);
-        } else if (selectedStatus === 'open' && currentStatus === 'Closed') {
-          await gsRun('setBidSubmissionStatus', SESSION.token, id, false);
-        }
-      }
-    }
+    // (Bid Status Open/Closed is handled immediately via handleBidStatusChange — not on save)
     closeModal('modal-bid-editor');
     toast('Bid opportunity saved.', 'success');
     loadMyBids();

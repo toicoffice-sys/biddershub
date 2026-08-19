@@ -1366,10 +1366,27 @@ function closeBid(token, bidId, outcome) {
   return { success: true };
 }
 
-/** Toggle bid submission status: Open (Published) ↔ Closed (no award). */
-function setBidSubmissionStatus(token, bidId, closed) {
+/** Toggle bid submission status: Open (Published) ↔ Closed (no award).
+ *  Closing requires a valid act_otp; reopening does not. */
+function setBidSubmissionStatus(token, bidId, closed, otp) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
+
+  if (closed) {
+    // Verify OTP before closing
+    const propKey = 'act_otp_' + user.email;
+    const raw = PropertiesService.getScriptProperties().getProperty(propKey);
+    if (!raw) throw new Error('No verification code found. Please request a new code.');
+    let otpData;
+    try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code. Please request a new code.'); }
+    if (Date.now() > otpData.expiry) {
+      PropertiesService.getScriptProperties().deleteProperty(propKey);
+      throw new Error('Code has expired. Please request a new one.');
+    }
+    if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
+    PropertiesService.getScriptProperties().deleteProperty(propKey);
+  }
+
   const found = _getBidRow(bidId);
   if (!found) throw new Error('Bid opportunity not found.');
   const { sheet, rowIndex, obj } = found;
@@ -1381,7 +1398,7 @@ function setBidSubmissionStatus(token, bidId, closed) {
     obj.Outcome  = '';
     obj.ClosedOn = now;
     obj.LastModified = now;
-    _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Submissions closed (no award)');
+    _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Submissions closed (OTP-verified)');
   } else {
     if (obj.Status !== 'Closed' || obj.Outcome === 'Awarded') throw new Error('Cannot reopen this bid.');
     obj.Status   = 'Published';
