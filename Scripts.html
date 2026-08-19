@@ -964,7 +964,8 @@ async function loadMyBids() {
 function bidActionsHtml(b) {
   const cpd = SESSION.user.role === 'cpd_admin' || SESSION.user.role === 'cpd_officer';
   if (!cpd) return '<span class="hint">—</span>';
-  return `<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>`;
+  return `<button class="btn btn-sm btn-outline" onclick="openBidEditor('${b.BidID}')">Edit</button>
+    <button class="btn btn-sm btn-danger" style="padding:4px 8px;" title="Delete bid" data-bid="${escapeHtml(b.BidID)}" data-title="${escapeHtml(b.Title)}" onclick="deleteBidAction(this.dataset.bid, this.dataset.title)">🗑</button>`;
 }
 
 async function viewSubmissions(bidId) {
@@ -1020,6 +1021,12 @@ async function closeBidAction(bidId) {
   if (!outcome) return;
   try { await gsRun('closeBid', SESSION.token, bidId, outcome.trim()); toast('Bid opportunity closed.', 'success'); loadMyBids(); }
   catch (e) { toast(e.message || 'Failed to close.', 'error'); }
+}
+
+async function deleteBidAction(bidId, title) {
+  if (!window.confirm('Permanently delete "' + (title || 'this bid') + '"? This cannot be undone.')) return;
+  try { await gsRun('deleteBid', SESSION.token, bidId); toast('Bid opportunity deleted.', 'success'); loadMyBids(); }
+  catch (e) { toast(e.message || 'Failed to delete.', 'error'); }
 }
 
 async function loadApprovals() {

@@ -1106,6 +1106,17 @@ function publishBid(token, bidId) {
   return { success: true };
 }
 
+function deleteBid(token, bidId) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  const found = _getBidRow(bidId);
+  if (!found) throw new Error('Bid opportunity not found.');
+  found.sheet.deleteRow(found.rowIndex);
+  _logRaw(user, 'DELETE', 'BidOpportunity', bidId, 'Deleted bid opportunity');
+  _cacheClear();
+  return { success: true };
+}
+
 function unpublishBid(token, bidId) {
   const user = requireAuth(token);
   if (!isCPD(user)) throw new Error('CPD authorization required.');
