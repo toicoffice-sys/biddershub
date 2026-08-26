@@ -1573,11 +1573,11 @@ function renderDashboard(s) {
   const chartDefaults = { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } } }, cutout: '62%', responsive: true };
 
   // Bid status pie
-  const statusColors = { Draft: '#9ca3af', PendingApproval: '#3b82f6', Approved: '#10b981', Published: '#1A3A5C', Closed: '#6b7280' };
+  const statusColors = { Draft: '#9ca3af', PendingApproval: '#3b82f6', Approved: '#3C8F55', Published: '#17452A', Closed: '#6b7280' };
   const statusLabels = Object.keys(s.byStatus);
   new Chart(document.getElementById('chart-bid-status'), {
     type: 'doughnut',
-    data: { labels: statusLabels, datasets: [{ data: statusLabels.map(k => s.byStatus[k]), backgroundColor: statusLabels.map(k => statusColors[k] || '#C8A951'), borderWidth: 2, borderColor: '#fff' }] },
+    data: { labels: statusLabels, datasets: [{ data: statusLabels.map(k => s.byStatus[k]), backgroundColor: statusLabels.map(k => statusColors[k] || '#2A7443'), borderWidth: 2, borderColor: '#fff' }] },
     options: chartDefaults,
   });
 
@@ -1585,7 +1585,7 @@ function renderDashboard(s) {
   const otherVendors = Math.max(0, (s.totalVendors || 0) - s.approvedVendors - s.pendingVendors);
   new Chart(document.getElementById('chart-vendor-status'), {
     type: 'doughnut',
-    data: { labels: ['Approved', 'Pending', 'Others'], datasets: [{ data: [s.approvedVendors, s.pendingVendors, otherVendors], backgroundColor: ['#27AE60', '#C8A951', '#9ca3af'], borderWidth: 2, borderColor: '#fff' }] },
+    data: { labels: ['Approved', 'Pending', 'Others'], datasets: [{ data: [s.approvedVendors, s.pendingVendors, otherVendors], backgroundColor: ['#1F5C34', '#3C8F55', '#9ca3af'], borderWidth: 2, borderColor: '#fff' }] },
     options: chartDefaults,
   });
 
@@ -1593,7 +1593,7 @@ function renderDashboard(s) {
   const answered = (s.totalInquiries || 0) - (s.openInquiries || 0);
   new Chart(document.getElementById('chart-inquiries'), {
     type: 'doughnut',
-    data: { labels: ['Answered', 'Open'], datasets: [{ data: [answered, s.openInquiries], backgroundColor: ['#1A3A5C', '#C8A951'], borderWidth: 2, borderColor: '#fff' }] },
+    data: { labels: ['Answered', 'Open'], datasets: [{ data: [answered, s.openInquiries], backgroundColor: ['#17452A', '#3C8F55'], borderWidth: 2, borderColor: '#fff' }] },
     options: chartDefaults,
   });
 }
