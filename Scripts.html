@@ -603,24 +603,21 @@ async function loadPublicBoard() {
 function renderPublicHeroStats(bids) {
   const count = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && (!b.outcome || b.outcome === 'Awarded'))).length;
   document.getElementById('pub-tab-bar').innerHTML = `
-    <div class="pub-tab-card" id="stat-open" onclick="togglePublicFilter('open')">
-      Open Opportunities <span class="ptc-count">${count}</span>
+    <div class="open-opps-header">
+      <div class="open-opps-title">Open Opportunities</div>
+      <span class="open-opps-count">${count} record${count !== 1 ? 's' : ''}</span>
     </div>`;
-  togglePublicFilter('open');
+  PUBLIC_FILTER = 'open';
+  applyPublicFilter();
 }
 
 function togglePublicFilter(type) {
-  if (PUBLIC_FILTER === type) { PUBLIC_FILTER = null; } else { PUBLIC_FILTER = type; PUBLIC_PAGE = 1; }
+  PUBLIC_FILTER = type; PUBLIC_PAGE = 1;
   applyPublicFilter();
 }
 
 function applyPublicFilter() {
-  const el = document.getElementById('stat-open');
-  if (el) el.classList.toggle('active', PUBLIC_FILTER === 'open');
-
   const content = document.getElementById('pub-tab-content');
-
-  if (!PUBLIC_FILTER) { content.classList.add('hidden'); return; }
   content.classList.remove('hidden');
 
   let filtered, emptyMsg;
