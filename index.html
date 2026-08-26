@@ -155,7 +155,6 @@
         <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">Bid Opportunities</button>
         <button class="tab" data-tab="s-loi" onclick="switchTab('staff','s-loi')">Submissions</button>
         <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')" style="display:none;">Vendor Accreditation</button>
-        <button class="tab" data-tab="s-dashboard" onclick="switchTab('staff','s-dashboard')">KPI Dashboard</button>
         <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">Staff Users</button>
         <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">Audit Log</button>
       </div>
@@ -183,7 +182,6 @@
         </div>
         <div id="staff-vendors-table"></div>
       </div>
-      <div id="staff-panel-s-dashboard" class="tab-panel hidden"><div id="staff-dashboard-content"></div></div>
       <div id="staff-panel-s-users" class="tab-panel hidden">
         <div class="toolbar" style="justify-content:flex-end;">
           <button class="btn btn-primary" onclick="openUserEditor()">+ Add Staff User</button>
@@ -523,7 +521,7 @@
     <input type="hidden" id="editor-bid-status">
     <div class="field"><label>Title *</label><input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project"></div>
     <div class="field"><label>Category</label><select id="editor-category"><option value="">— Select category —</option></select></div>
-    <div class="field"><label>Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
+    <div class="field"><label>Letter of Intent Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
     <div class="field"><label>Description</label><textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4"></textarea></div>
     <div class="field" id="editor-submission-status-row" style="display:none;">
       <label>Bid Status</label>

@@ -308,7 +308,7 @@ function configureStaffTabsForRole(role) {
   const admin = role === 'cpd_admin';
   document.querySelectorAll('#staff-tabs .tab').forEach(btn => {
     const tab = btn.dataset.tab;
-    if (['s-approvals', 's-inquiries', 's-dashboard'].includes(tab)) btn.style.display = cpd ? '' : 'none';
+    if (['s-approvals', 's-inquiries'].includes(tab)) btn.style.display = cpd ? '' : 'none';
     if (tab === 's-vendors') btn.style.display = 'none';
     if (['s-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
   });
@@ -328,7 +328,6 @@ function loadTabData(scope, tabId) {
     if (tabId === 's-approvals') return loadApprovals();
     if (tabId === 's-vendors') return loadVendorApplications();
     if (tabId === 's-inquiries') return loadInquiriesForReview();
-    if (tabId === 's-dashboard') return loadDashboard();
     if (tabId === 's-users') return loadUsers();
     if (tabId === 's-audit') return loadAuditLog();
   }
@@ -1195,15 +1194,30 @@ async function viewSubmissions(bidId) {
 function renderMyBidsTable(bids) {
   const el = document.getElementById('staff-mybids-table');
   if (!bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities yet.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Deadline</th><th>Submissions</th><th>Actions</th></tr></thead><tbody>` +
-    bids.map(b => `<tr>
-      <td>${escapeHtml(b.Title)}</td>
-      <td>${escapeHtml(b.Category)}</td>
-      <td><span class="stamp ${stampClass(b.Status)}">${escapeHtml(b.Status)}</span></td>
-      <td>${fmtDate(b.SubmissionDeadline)}</td>
-      <td style="text-align:center;font-weight:600;">${b.submissionCount || 0}</td>
-      <td>${bidActionsHtml(b)}</td>
-    </tr>`).join('') + `</tbody></table>`;
+  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
+    bids.map(b => {
+      const isPublished = b.Status === 'Published';
+      const isClosedAwarded = b.Status === 'Closed' && b.Outcome === 'Awarded';
+      const isClosed = b.Status === 'Closed' && !isClosedAwarded;
+      const canChange = isPublished || b.Status === 'Closed';
+      const currentVal = isPublished ? 'Open' : isClosedAwarded ? 'Awarded' : isClosed ? 'Closed' : '';
+      const dropdown = canChange
+        ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;">
+            <option value="Open" ${currentVal === 'Open' ? 'selected' : ''}>Open</option>
+            <option value="Closed" ${currentVal === 'Closed' ? 'selected' : ''}>Closed</option>
+            <option value="Awarded" ${currentVal === 'Awarded' ? 'selected' : ''}>Awarded</option>
+           </select>`
+        : `<span class="hint">—</span>`;
+      return `<tr>
+        <td>${escapeHtml(b.Title)}</td>
+        <td>${escapeHtml(b.Category)}</td>
+        <td><span class="stamp ${stampClass(b.Status)}">${escapeHtml(b.Status)}</span></td>
+        <td>${fmtDate(b.SubmissionDeadline)}</td>
+        <td style="text-align:center;font-weight:600;">${b.submissionCount || 0}</td>
+        <td>${dropdown}</td>
+        <td>${bidActionsHtml(b)}</td>
+      </tr>`;
+    }).join('') + `</tbody></table>`;
 }
 
 async function submitForApproval(bidId) {
@@ -1228,6 +1242,27 @@ async function closeBidAction(bidId) {
   if (!outcome) return;
   try { await gsRun('closeBid', SESSION.token, bidId, outcome.trim()); toast('Bid opportunity closed.', 'success'); loadMyBids(); }
   catch (e) { toast(e.message || 'Failed to close.', 'error'); }
+}
+
+async function updateBidStatusInline(bidId, newVal, selectEl) {
+  const prev = selectEl.dataset.prev || selectEl.value;
+  selectEl.dataset.prev = selectEl.value;
+  try {
+    if (newVal === 'Open') {
+      await gsRun('setBidSubmissionStatus', SESSION.token, bidId, false);
+      toast('Bid reopened to Open.', 'success');
+    } else if (newVal === 'Closed') {
+      await gsRun('closeBid', SESSION.token, bidId, 'No Award');
+      toast('Bid closed.', 'success');
+    } else if (newVal === 'Awarded') {
+      await gsRun('closeBid', SESSION.token, bidId, 'Awarded');
+      toast('Bid marked as Awarded.', 'success');
+    }
+    loadMyBids();
+  } catch (e) {
+    toast(e.message || 'Status update failed.', 'error');
+    selectEl.value = prev;
+  }
 }
 
 async function deleteBidAction(bidId, title) {
