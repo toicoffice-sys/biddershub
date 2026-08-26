@@ -596,7 +596,7 @@ async function loadPublicBoard() {
 }
 
 function renderPublicHeroStats(bids) {
-  const count = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && b.outcome === 'Awarded')).length;
+  const count = bids.filter(b => b.status === 'Published' || b.status === 'Closed').length;
   document.getElementById('pub-tab-bar').innerHTML = `
     <div class="open-opps-header">
       <div class="open-opps-title">Open Opportunities</div>
@@ -616,7 +616,7 @@ function applyPublicFilter() {
   content.classList.remove('hidden');
 
   let filtered, emptyMsg;
-  filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && b.outcome === 'Awarded'));
+  filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || b.status === 'Closed');
   emptyMsg = 'No bid opportunities at this time.';
 
   if (!filtered.length) { content.innerHTML = `<div class="bid-list-empty">${emptyMsg}</div>`; return; }
@@ -709,6 +709,11 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
     html += `
       <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;font-size:13px;color:#166534;font-weight:600;">
         🏆 This bid opportunity has been awarded. No further submissions are being accepted.
+      </div>`;
+  } else if (bid.status === 'Closed') {
+    html += `
+      <div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;font-size:13px;color:#991b1b;font-weight:600;">
+        🔒 This bid opportunity is now closed. No further submissions are being accepted.
       </div>`;
   }
 
