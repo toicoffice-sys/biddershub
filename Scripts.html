@@ -1197,17 +1197,18 @@ function renderMyBidsTable(bids) {
   el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
     bids.map(b => {
       const isPublished = b.Status === 'Published';
-      const isClosedAwarded = b.Status === 'Closed' && b.Outcome === 'Awarded';
-      const isClosed = b.Status === 'Closed' && !isClosedAwarded;
-      const canChange = isPublished || b.Status === 'Closed';
-      const currentVal = isPublished ? 'Open' : isClosedAwarded ? 'Awarded' : isClosed ? 'Closed' : '';
-      const dropdown = canChange
-        ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;">
-            <option value="Open" ${currentVal === 'Open' ? 'selected' : ''}>Open</option>
-            <option value="Closed" ${currentVal === 'Closed' ? 'selected' : ''}>Closed</option>
-            <option value="Awarded" ${currentVal === 'Awarded' ? 'selected' : ''}>Awarded</option>
-           </select>`
-        : `<span class="hint">—</span>`;
+      const isAwarded = b.Outcome === 'Awarded';
+      const isClosed = b.Status === 'Closed' && !isAwarded;
+      const currentVal = isAwarded ? 'Awarded' : isPublished ? 'Open' : isClosed ? 'Closed' : '';
+      const dropdown = isAwarded
+        ? `<span class="stamp stamp-green" style="font-size:11px;">Awarded</span>`
+        : (isPublished || isClosed)
+          ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;">
+              <option value="Open" ${currentVal === 'Open' ? 'selected' : ''}>Open</option>
+              <option value="Closed" ${currentVal === 'Closed' ? 'selected' : ''}>Closed</option>
+              <option value="Awarded" ${currentVal === 'Awarded' ? 'selected' : ''}>Awarded</option>
+             </select>`
+          : `<span class="hint">—</span>`;
       return `<tr>
         <td>${escapeHtml(b.Title)}</td>
         <td>${escapeHtml(b.Category)}</td>
