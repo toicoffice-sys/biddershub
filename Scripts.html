@@ -44,7 +44,7 @@ function fmtDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '—';
-  return d.toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+  return d.toLocaleDateString('en-PH', { dateStyle: 'medium' });
 }
 function fmtMoney(n) {
   return '₱' + (Number(n) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
