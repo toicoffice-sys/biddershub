@@ -710,16 +710,10 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
 
   const isAwarded = bid.status === 'Closed' && bid.outcome === 'Awarded';
 
-  // Winning bidder banner — shown for awarded bids
   if (isAwarded) {
     html += `
-      <div style="margin-top:20px;padding:16px 20px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;">
-        <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#166534;margin-bottom:6px;">Winning Bidder</div>
-        <div style="display:flex;align-items:center;gap:10px;">
-          <span style="font-size:1.4rem;">🏆</span>
-          <span style="font-size:1.1rem;font-weight:700;color:#15803d;">${escapeHtml(bid.winner || '—')}</span>
-        </div>
-        <div style="font-size:12px;color:#166534;margin-top:6px;">This bid opportunity has been awarded. No further submissions are being accepted.</div>
+      <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;font-size:13px;color:#166534;font-weight:600;">
+        🏆 This bid opportunity has been awarded. No further submissions are being accepted.
       </div>`;
   }
 
