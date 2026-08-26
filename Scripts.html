@@ -748,6 +748,10 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
           <h4 style="margin-bottom:4px;">Interested in this bid?</h4>
           <p class="hint" style="margin-bottom:14px;">Fill in your details below and submit a Letter of Intent. Our procurement team will reach out to you.</p>
           <input type="hidden" id="bid-loi-title" value="${escapeHtml(bid.title)}">
+          <div style="margin-bottom:12px;">
+            <label class="field-label">Project Name</label>
+            <input type="text" id="bid-loi-project" value="${escapeHtml(bid.title)}" readonly style="background:var(--paper-2);color:var(--ink-faint);cursor:default;">
+          </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
             <div><label class="field-label">Company Name <span style="color:var(--danger)">*</span></label>
               <input type="text" id="bid-loi-company" placeholder="e.g. ABC Trading Corp."></div>
