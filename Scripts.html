@@ -1194,7 +1194,7 @@ async function viewSubmissions(bidId) {
 function renderMyBidsTable(bids) {
   const el = document.getElementById('staff-mybids-table');
   if (!bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities yet.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
+  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
     bids.map(b => {
       const isPublished = b.Status === 'Published';
       const isAwarded = b.Outcome === 'Awarded' || b.loiAwarded === true;
@@ -1212,7 +1212,6 @@ function renderMyBidsTable(bids) {
       return `<tr>
         <td>${escapeHtml(b.Title)}</td>
         <td>${escapeHtml(b.Category)}</td>
-        <td><span class="stamp ${stampClass(b.Status)}">${escapeHtml(b.Status)}</span></td>
         <td>${fmtDate(b.SubmissionDeadline)}</td>
         <td style="text-align:center;font-weight:600;">${b.submissionCount || 0}</td>
         <td>${dropdown}</td>
