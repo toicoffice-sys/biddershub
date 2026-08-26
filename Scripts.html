@@ -634,12 +634,13 @@ function applyPublicFilter() {
   const start = (PUBLIC_PAGE - 1) * PUBLIC_PAGE_SIZE;
   const page  = filtered.slice(start, start + PUBLIC_PAGE_SIZE);
 
-  const listHtml = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">` +
-    page.map(b => {
+  const listHtml = `<div>` +
+    page.map((b, i) => {
       const isClosed = b.status === 'Closed' && !b.outcome;
       const isAwarded = b.status === 'Closed' && b.outcome === 'Awarded';
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#F5F7FA';
       return `
-    <div class="bid-list-item" style="margin-bottom:0;${isClosed ? 'opacity:.85;' : ''}" onclick="openBidDetail('${b.bidId}')">
+    <div class="bid-list-item" style="background:${rowBg};border-radius:0;border-left:none;border-right:none;border-top:none;border-bottom:1px solid #e5e7eb;margin-bottom:0;${isClosed ? 'opacity:.85;' : ''}" onclick="openBidDetail('${b.bidId}')">
       <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
       <div class="bli-body" style="position:relative;">
         <div class="bli-title">${escapeHtml(b.title)}</div>
