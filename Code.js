@@ -1495,15 +1495,27 @@ function getMyBids(token, statusFilter) {
     if (statusFilter) bids = bids.filter(b => b.Status === statusFilter);
     bids.sort((a, b) => (new Date(b.CreatedOn).getTime() || 0) - (new Date(a.CreatedOn).getTime() || 0));
     let loiCountMap = _cacheGet(CACHE_LOI_MAP);
+    let loiAwardedSet;
     if (!loiCountMap) {
       loiCountMap = {};
+      loiAwardedSet = new Set();
       sheetToObjects(getSheet(SH.LOI)).forEach(r => {
-        const title = (r.BidTitle || '').trim();
-        if (title) loiCountMap[title] = (loiCountMap[title] || 0) + 1;
+        const title = (r.BidTitle || '').trim().toLowerCase();
+        if (title) {
+          loiCountMap[title] = (loiCountMap[title] || 0) + 1;
+          if ((r.Status || '').trim() === 'Awarded') loiAwardedSet.add(title);
+        }
       });
       _cacheSet(CACHE_LOI_MAP, loiCountMap, 120); // 2-min TTL
+      _cacheSet('loi_awarded_set', JSON.stringify([...loiAwardedSet]), 120);
+    } else {
+      const raw = _cacheGet('loi_awarded_set');
+      loiAwardedSet = new Set(raw ? JSON.parse(raw) : []);
     }
-    return { success: true, bids: bids.map(b => ({ ...b, documents: _safeParseJSON(b.Documents, {}), submissionCount: loiCountMap[(b.Title || '').trim()] || 0 })) };
+    return { success: true, bids: bids.map(b => {
+      const titleKey = (b.Title || '').trim().toLowerCase();
+      return { ...b, documents: _safeParseJSON(b.Documents, {}), submissionCount: loiCountMap[titleKey] || 0, loiAwarded: loiAwardedSet.has(titleKey) };
+    }) };
   } catch (err) {
     console.error('getMyBids failed: ' + err.message + '\n' + err.stack);
     throw new Error('getMyBids: ' + err.message);
