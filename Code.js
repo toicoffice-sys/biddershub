@@ -98,7 +98,7 @@ function doGet(e) {
   return HtmlService
     .createTemplateFromFile('index')
     .evaluate()
-    .setTitle('BiddersHub — DLSL Procurement Portal')
+    .setTitle('DLSL CPO — Procurement Portal')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
@@ -255,12 +255,12 @@ function sendActionOTP(token) {
   const expiry = Date.now() + 600000; // 10 minutes
   PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify({ code, expiry }));
   try {
-    _mail(email, 'BiddersHub — Action Confirmation Code',
+    _mail(email, 'DLSL CPO — Action Confirmation Code',
       'Your confirmation code is: ' + code + '\n\n' +
       'This code is required to undo an award decision.\n' +
       'It expires in 10 minutes.\n\n' +
       'If you did not request this, please ignore this email.\n\n' +
-      '— De La Salle Lipa Central Procurement Office · BiddersHub');
+      '— De La Salle Lipa Central Procurement Office');
   } catch (e) {
     return { success: false, message: 'Failed to send confirmation email. Please try again.' };
   }
@@ -571,11 +571,11 @@ function _dispatchOTP(email) {
   PropertiesService.getScriptProperties().setProperty(propKey, JSON.stringify({ code, expiry }));
 
   try {
-    _mail(email, 'BiddersHub — Your Access Code',
+    _mail(email, 'DLSL CPO — Your Access Code',
       'Your 6-digit access code is: ' + code + '\n\n' +
       'This code expires in 10 minutes.\n\n' +
       'If you did not request this code, please ignore this email.\n\n' +
-      '— De La Salle Lipa Procurement Office · BiddersHub');
+      '— De La Salle Lipa Procurement Office');
   } catch (e) {
     console.error('_dispatchOTP: _mail failed for ' + email + ':', e);
     return { success: false, message: 'Failed to send the verification email. Please try again.' };
@@ -892,11 +892,11 @@ function submitLetterOfIntent(data) {
   // Notify CPO — subject includes bid title + company name when submitted from a specific bid
   const cpoSubject = bidTitle
     ? bidTitle + ' — ' + companyName
-    : 'BiddersHub — New Letter of Intent: ' + companyName;
+    : 'DLSL CPO — New Letter of Intent: ' + companyName;
 
   // Auto-reply to submitter
   try {
-    _mail(contactEmail, 'BiddersHub — Letter of Intent Received',
+    _mail(contactEmail, 'DLSL CPO — Letter of Intent Received',
       'Dear ' + contactPerson + ',\n\n' +
       'Thank you for your Letter of Intent to participate in procurement opportunities at De La Salle Lipa.\n\n' +
       'We have received the following details:\n' +
@@ -909,21 +909,21 @@ function submitLetterOfIntent(data) {
       ACCREDITATION_URL + '\n\n' +
       'Our team will review your submission and reach out to you within 3–5 business days. ' +
       'For inquiries, you may email us at procurement.office@dlsl.edu.ph.\n\n' +
-      '— De La Salle Lipa Procurement Office · BiddersHub');
+      '— De La Salle Lipa Procurement Office');
   } catch (e) { console.error('LOI auto-reply failed for ' + contactEmail + ':', e); }
 
   // Notify CPO office
   try {
     _mail('procurement.office@dlsl.edu.ph', cpoSubject,
-      'A new Letter of Intent has been submitted via BiddersHub.\n\n' +
+      'A new Letter of Intent has been submitted via the DLSL Procurement Portal.\n\n' +
       (bidTitle ? '  Bid            : ' + bidTitle + '\n' : '') +
       '  Company Name   : ' + companyName   + '\n' +
       '  Contact Person : ' + contactPerson + '\n' +
       '  Contact Email  : ' + contactEmail  + '\n' +
       '  Contact Number : ' + contactNumber + '\n' +
       '  Submitted On   : ' + now           + '\n\n' +
-      'View all letters of intent in the LettersOfIntent sheet of the BiddersHub spreadsheet.\n\n' +
-      '— BiddersHub Automated Notification');
+      'View all letters of intent in the LettersOfIntent sheet of the Procurement Portal spreadsheet.\n\n' +
+      '— DLSL CPO Automated Notification');
   } catch (e) { console.error('LOI CPO notification failed:', e); }
 
   return { success: true };
@@ -931,8 +931,8 @@ function submitLetterOfIntent(data) {
 
 function _emailVendor(email, subject, bodyIntro) {
   try {
-    _mail(email, 'BiddersHub — ' + subject,
-      bodyIntro + '\n\n— De La Salle Lipa Procurement Office · BiddersHub');
+    _mail(email, 'DLSL CPO — ' + subject,
+      bodyIntro + '\n\n— De La Salle Lipa Procurement Office');
   } catch (e) { console.error('_emailVendor failed for ' + email + ':', e); }
 }
 
@@ -941,7 +941,7 @@ function sendEmailToVendor(token, to, subject, body) {
   const user = requireAuth(token);
   if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
   if (!to || !subject || !body) throw new Error('to, subject, and body are required.');
-  _mail(to, subject, body + '\n\n— De La Salle Lipa Procurement Office · BiddersHub');
+  _mail(to, subject, body + '\n\n— De La Salle Lipa Procurement Office');
   _logRaw(user, 'EMAIL', 'LOI', to, 'Sent email: ' + subject);
   return { success: true };
 }
@@ -1095,7 +1095,7 @@ function reviewAccreditation(token, vendorId, decision, notes, expiryDate) {
     _emailVendor(obj.Email, 'Action Needed on Your Accreditation Application',
       'The CPD has reviewed your accreditation application for ' + obj.CompanyName + ' and needs ' +
       'some corrections before it can be approved:\n\n' + notes.trim() + '\n\n' +
-      'Please log in to BiddersHub and update your documents from the Accreditation Status tab.');
+      'Please log in to the Procurement Portal and update your documents from the Accreditation Status tab.');
   }
   return { success: true };
 }
@@ -1111,7 +1111,7 @@ function resendVendorReminder(token, vendorId) {
   if (obj.AccreditationStatus !== 'ChangesRequested') throw new Error('This vendor is not currently awaiting revision.');
   _emailVendor(obj.Email, 'Reminder: Action Needed on Your Accreditation Application',
     'This is a reminder that your accreditation application for ' + obj.CompanyName + ' needs corrections:\n\n' +
-    obj.ReviewNotes + '\n\nPlease log in to BiddersHub and update your documents from the Accreditation Status tab.');
+    obj.ReviewNotes + '\n\nPlease log in to the Procurement Portal and update your documents from the Accreditation Status tab.');
   _logRaw(user, 'REMIND', 'VendorAccreditation', vendorId, 'Resent revision reminder');
   return { success: true };
 }
