@@ -596,7 +596,7 @@ async function loadPublicBoard() {
 }
 
 function renderPublicHeroStats(bids) {
-  const count = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && (!b.outcome || b.outcome === 'Awarded'))).length;
+  const count = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && b.outcome === 'Awarded')).length;
   document.getElementById('pub-tab-bar').innerHTML = `
     <div class="open-opps-header">
       <div class="open-opps-title">Open Opportunities</div>
@@ -616,7 +616,7 @@ function applyPublicFilter() {
   content.classList.remove('hidden');
 
   let filtered, emptyMsg;
-  filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && (!b.outcome || b.outcome === 'Awarded')));
+  filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && b.outcome === 'Awarded'));
   emptyMsg = 'No bid opportunities at this time.';
 
   if (!filtered.length) { content.innerHTML = `<div class="bid-list-empty">${emptyMsg}</div>`; return; }
@@ -1257,7 +1257,7 @@ async function updateBidStatusInline(bidId, newVal, selectEl) {
       await gsRun('closeBid', SESSION.token, bidId, 'Awarded');
       toast('Bid marked as Awarded.', 'success');
     }
-    loadMyBids();
+    PUBLIC_BIDS = []; loadPublicBoard(); loadMyBids();
   } catch (e) {
     toast(e.message || 'Status update failed.', 'error');
     selectEl.value = prev;
