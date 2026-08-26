@@ -601,14 +601,10 @@ async function loadPublicBoard() {
 }
 
 function renderPublicHeroStats(bids) {
-  const published = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && !b.outcome)).length;
-  const awarded   = bids.filter(b => b.status === 'Closed' && b.outcome === 'Awarded').length;
+  const count = bids.filter(b => b.status === 'Published' || (b.status === 'Closed' && (!b.outcome || b.outcome === 'Awarded'))).length;
   document.getElementById('pub-tab-bar').innerHTML = `
     <div class="pub-tab-card" id="stat-open" onclick="togglePublicFilter('open')">
-      Open Opportunities <span class="ptc-count">${published}</span>
-    </div>
-    <div class="pub-tab-card" id="stat-awarded" onclick="togglePublicFilter('awarded')">
-      Awarded Bids <span class="ptc-count">${awarded}</span>
+      Open Opportunities <span class="ptc-count">${count}</span>
     </div>`;
   togglePublicFilter('open');
 }
@@ -619,10 +615,8 @@ function togglePublicFilter(type) {
 }
 
 function applyPublicFilter() {
-  ['open','awarded'].forEach(t => {
-    const el = document.getElementById('stat-' + t);
-    if (el) el.classList.toggle('active', PUBLIC_FILTER === t);
-  });
+  const el = document.getElementById('stat-open');
+  if (el) el.classList.toggle('active', PUBLIC_FILTER === 'open');
 
   const content = document.getElementById('pub-tab-content');
 
@@ -630,13 +624,8 @@ function applyPublicFilter() {
   content.classList.remove('hidden');
 
   let filtered, emptyMsg;
-  if (PUBLIC_FILTER === 'open') {
-    filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && !b.outcome));
-    emptyMsg = 'No open bid opportunities at this time.';
-  } else {
-    filtered = PUBLIC_BIDS.filter(b => b.status === 'Closed' && b.outcome === 'Awarded');
-    emptyMsg = 'No awarded bids on record.';
-  }
+  filtered = PUBLIC_BIDS.filter(b => b.status === 'Published' || (b.status === 'Closed' && (!b.outcome || b.outcome === 'Awarded')));
+  emptyMsg = 'No bid opportunities at this time.';
 
   if (!filtered.length) { content.innerHTML = `<div class="bid-list-empty">${emptyMsg}</div>`; return; }
 
