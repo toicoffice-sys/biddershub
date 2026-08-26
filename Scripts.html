@@ -1195,9 +1195,8 @@ async function viewSubmissions(bidId) {
 function renderMyBidsTable(bids) {
   const el = document.getElementById('staff-mybids-table');
   if (!bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities yet.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Reference</th><th>Title</th><th>Category</th><th>Status</th><th>Deadline</th><th>Submissions</th><th>Actions</th></tr></thead><tbody>` +
+  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Status</th><th>Deadline</th><th>Submissions</th><th>Actions</th></tr></thead><tbody>` +
     bids.map(b => `<tr>
-      <td class="control-no">${escapeHtml(b.ReferenceNo || '')}</td>
       <td>${escapeHtml(b.Title)}</td>
       <td>${escapeHtml(b.Category)}</td>
       <td><span class="stamp ${stampClass(b.Status)}">${escapeHtml(b.Status)}</span></td>
@@ -1243,9 +1242,8 @@ async function loadApprovals() {
   try {
     const res = await gsRun('getMyBids', SESSION.token, 'PendingApproval');
     if (!res.bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities awaiting approval.</div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Reference</th><th>Title</th><th>Proponent</th><th>Category</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
+    el.innerHTML = `<table><thead><tr><th>Title</th><th>Proponent</th><th>Category</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
       res.bids.map(b => `<tr>
-        <td class="control-no">${escapeHtml(b.ReferenceNo || '')}</td>
         <td>${escapeHtml(b.Title)}</td><td>${escapeHtml(b.CreatedBy)}</td><td>${escapeHtml(b.Category)}</td>
         <td>${fmtDate(b.SubmittedOn)}</td><td>${bidActionsHtml(b)}</td>
       </tr>`).join('') + `</tbody></table>`;
@@ -1389,9 +1387,8 @@ async function loadVendorApplications() {
   try {
     const res = await gsRun('getAccreditationApplications', SESSION.token, statusFilter);
     if (!res.vendors.length) { el.innerHTML = '<div class="empty-state">No vendor applications found.</div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Reference</th><th>Company</th><th>Contact</th><th>Documents</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
+    el.innerHTML = `<table><thead><tr><th>Company</th><th>Contact</th><th>Documents</th><th>Status</th><th>Submitted</th><th>Actions</th></tr></thead><tbody>` +
       res.vendors.map(v => `<tr>
-        <td class="control-no">${escapeHtml(v.AccreditationNo || '—')}</td>
         <td>${escapeHtml(v.CompanyName)}</td>
         <td>${escapeHtml(v.ContactPerson)}<br><span class="hint">${escapeHtml(v.Email)}</span></td>
         <td>${renderDocList(v.documents, DOCUMENT_TYPES)}</td>
