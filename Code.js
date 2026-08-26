@@ -1366,6 +1366,71 @@ function closeBid(token, bidId, outcome) {
   return { success: true };
 }
 
+/** Undo an Awarded bid — requires OTP. Resets Status→Published, Outcome→'', and
+ *  clears the Awarded flag on any linked LOI rows. */
+function undoAwardBid(token, bidId, otp) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+
+  // Verify OTP
+  const propKey = 'act_otp_' + user.email;
+  const raw = PropertiesService.getScriptProperties().getProperty(propKey);
+  if (!raw) throw new Error('No verification code found. Please request a new code.');
+  let otpData;
+  try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code. Please request a new code.'); }
+  if (Date.now() > otpData.expiry) {
+    PropertiesService.getScriptProperties().deleteProperty(propKey);
+    throw new Error('Code has expired. Please request a new one.');
+  }
+  if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
+  PropertiesService.getScriptProperties().deleteProperty(propKey);
+
+  // Find the bid
+  const found = _getBidRow(bidId);
+  if (!found) throw new Error('Bid opportunity not found.');
+  const { sheet, rowIndex, obj } = found;
+
+  // Also look for awarded LOI rows for this bid (case-insensitive title match)
+  const loiSheet = getSheet(SH.LOI);
+  const loiData  = loiSheet.getDataRange().getValues();
+  const lh = loiData[0];
+  const lTitleIdx  = lh.indexOf('BidTitle');
+  const lStatusIdx = lh.indexOf('Status');
+  const bidTitleLower = (obj.Title || '').trim().toLowerCase();
+  let loiAwardedRowIdxs = [];
+  if (lTitleIdx !== -1 && lStatusIdx !== -1) {
+    for (let i = 1; i < loiData.length; i++) {
+      if ((loiData[i][lTitleIdx] || '').trim().toLowerCase() === bidTitleLower &&
+          loiData[i][lStatusIdx] === 'Awarded') {
+        loiAwardedRowIdxs.push(i + 1); // 1-based row
+      }
+    }
+  }
+
+  if (obj.Outcome !== 'Awarded' && loiAwardedRowIdxs.length === 0) {
+    throw new Error('This bid has not been awarded and has no awarded LOI submissions.');
+  }
+
+  const now = new Date().toISOString();
+
+  // Reset bid if it was closed-awarded
+  if (obj.Outcome === 'Awarded') {
+    obj.Status       = 'Published';
+    obj.Outcome      = '';
+    obj.ClosedOn     = '';
+    obj.ReviewNotes  = '';
+    obj.LastModified = now;
+    _writeRowObject(sheet, BID_HEADERS, rowIndex, obj);
+  }
+
+  // Reset all linked awarded LOI rows
+  loiAwardedRowIdxs.forEach(r => loiSheet.getRange(r, lStatusIdx + 1).setValue(''));
+
+  _logRaw(user, 'STATUS_CHANGE', 'BidOpportunity', bidId, 'Award undone (OTP-verified)');
+  _cacheClear();
+  return { success: true };
+}
+
 /** Toggle bid submission status: Open (Published) ↔ Closed (no award).
  *  Closing requires a valid act_otp; reopening does not. */
 function setBidSubmissionStatus(token, bidId, closed, otp) {

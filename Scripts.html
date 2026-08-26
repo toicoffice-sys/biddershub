@@ -1201,7 +1201,10 @@ function renderMyBidsTable(bids) {
       const isClosed = b.Status === 'Closed' && !isAwarded;
       const currentVal = isAwarded ? 'Awarded' : isPublished ? 'Open' : isClosed ? 'Closed' : '';
       const dropdown = isAwarded
-        ? `<span class="stamp stamp-green" style="font-size:11px;">Awarded</span>`
+        ? `<span style="display:flex;align-items:center;gap:6px;">
+             <span class="stamp stamp-green" style="font-size:11px;">Awarded</span>
+             <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:#fff;border:1px solid #d1d5db;color:#6b7280;" onclick="undoAwardAction('${b.BidID}')">Undo</button>
+           </span>`
         : (isPublished || isClosed)
           ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;">
               <option value="Open" ${currentVal === 'Open' ? 'selected' : ''}>Open</option>
@@ -1262,6 +1265,25 @@ async function updateBidStatusInline(bidId, newVal, selectEl) {
   } catch (e) {
     toast(e.message || 'Status update failed.', 'error');
     selectEl.value = prev;
+  }
+}
+
+async function undoAwardAction(bidId) {
+  let sendRes;
+  try { sendRes = await gsRun('sendActionOTP', SESSION.token); }
+  catch (e) { toast(e.message || 'Failed to send verification code.', 'error'); return; }
+  if (!sendRes.success) { toast(sendRes.message || 'Failed to send code.', 'error'); return; }
+
+  const otp = await showActionOTP(sendRes.maskedEmail,
+    'A verification code was sent to ' + sendRes.maskedEmail + '. Enter it to undo this award.');
+  if (otp === null) return;
+
+  try {
+    await gsRun('undoAwardBid', SESSION.token, bidId, otp);
+    toast('Award successfully undone.', 'success');
+    PUBLIC_BIDS = []; loadPublicBoard(); loadMyBids();
+  } catch (e) {
+    toast(e.message || 'Failed to undo award.', 'error');
   }
 }
 
