@@ -615,6 +615,18 @@
   </div>
 </div>
 
+<!-- ── MODAL: VIEW STAFF USER DETAIL ─────────────────────── -->
+<div id="modal-user-detail" class="modal-overlay hidden">
+  <div class="modal" style="max-width:500px;">
+    <div style="margin:-28px -28px 20px;border-radius:10px 10px 0 0;background:linear-gradient(135deg,#254C3A 0%,#307652 100%);padding:22px 60px 18px 28px;position:relative;">
+      <button class="modal-close" onclick="closeModal('modal-user-detail')" style="position:absolute;top:14px;right:16px;color:#fff;opacity:.85;">&times;</button>
+      <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:.1em;margin-bottom:6px;text-transform:uppercase;">Staff Portal · User Management</div>
+      <h3 style="color:#fff;margin:0;font-size:1.1rem;line-height:1.3;">Staff User Details</h3>
+    </div>
+    <div id="user-detail-content"></div>
+  </div>
+</div>
+
 <!-- ── MODAL: ADD / EDIT STAFF USER (CPD Admin) ──────────── -->
 <div id="modal-edit-user" class="modal-overlay hidden">
   <div class="modal" style="max-width:520px;">

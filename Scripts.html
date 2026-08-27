@@ -728,25 +728,17 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
     </div>`;
 
   // ── Details table ──
+  const _lbl = 'padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;';
+  const _val = (n) => `padding:9px 14px;border:1px solid #e0e5e0;background:${n%2===0?'#FFFFFF':'#EAF4ED'};`;
+  let _r = 0;
   html += `
     <table style="width:100%;border-collapse:collapse;margin:20px 0 0;font-size:13px;">
       <tbody>
-        <tr>
-          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;">Submission Deadline</td>
-          <td style="padding:9px 14px;font-weight:600;color:var(--ink);border:1px solid #e0e5e0;">📅 ${fmtDate(bid.submissionDeadline)}</td>
-        </tr>
-        <tr>
-          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Published On</td>
-          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${fmtDate(bid.publishedOn)}</td>
-        </tr>
-        ${bid.closedOn ? `<tr>
-          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Closed On</td>
-          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${fmtDate(bid.closedOn)}</td>
-        </tr>` : ''}
-        ${bid.category ? `<tr>
-          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Category</td>
-          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${escapeHtml(bid.category)}</td>
-        </tr>` : ''}
+        <tr><td style="${_lbl}">Submission Deadline</td><td style="${_val(_r++)}font-weight:600;color:var(--ink);">📅 ${fmtDate(bid.submissionDeadline)}</td></tr>
+        <tr><td style="${_lbl}">Published On</td><td style="${_val(_r++)}color:var(--ink-soft);">${fmtDate(bid.publishedOn)}</td></tr>
+        ${bid.closedOn ? `<tr><td style="${_lbl}">Closed On</td><td style="${_val(_r++)}color:var(--ink-soft);">${fmtDate(bid.closedOn)}</td></tr>` : ''}
+        ${bid.category ? `<tr><td style="${_lbl}">Category</td><td style="${_val(_r++)}color:var(--ink-soft);">${escapeHtml(bid.category)}</td></tr>` : ''}
+        <tr><td style="${_lbl}">Reference No.</td><td style="${_val(_r++)}color:var(--ink-soft);font-family:var(--mono);font-size:12px;">${escapeHtml(bid.referenceNo || '—')}</td></tr>
       </tbody>
     </table>`;
 
@@ -1735,12 +1727,35 @@ async function loadUsers() {
         <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u.Department)}">${escapeHtml(u.Department)}</td>
         <td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
         <td><div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap;">
+          <button class="btn btn-sm btn-muted" onclick="viewUser('${u.UserID}')">View</button>
           <button class="btn btn-sm btn-outline" onclick="openUserEditor('${u.UserID}')">Edit</button>
           ${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : ''}
           <button class="btn btn-sm btn-danger" style="padding:4px 8px;" title="Delete user" data-uid="${escapeHtml(u.UserID)}" data-name="${escapeHtml(u.FullName)}" onclick="deleteUserAction(this.dataset.uid, this.dataset.name)">🗑</button>
         </div></td>
       </tr>`).join('') + `</tbody></table>`;
   } catch (e) { el.innerHTML = '<p class="error-text">Failed to load staff users. ' + escapeHtml(e.message || String(e)) + '</p>'; }
+}
+
+function viewUser(userId) {
+  const u = STAFF_USERS_CACHE.find(x => x.UserID === userId);
+  if (!u) return;
+  const _lbl = 'padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;';
+  const _val = (n) => `padding:9px 14px;border:1px solid #e0e5e0;background:${n%2===0?'#FFFFFF':'#EAF4ED'};color:var(--ink);`;
+  document.getElementById('user-detail-content').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+      <tbody>
+        <tr><td style="${_lbl}">Full Name</td><td style="${_val(0)}font-weight:600;">${escapeHtml(u.FullName)}</td></tr>
+        <tr><td style="${_lbl}">Email</td><td style="${_val(1)}"><a href="mailto:${escapeHtml(u.Email)}" style="color:var(--g600);font-weight:600;">${escapeHtml(u.Email)}</a></td></tr>
+        <tr><td style="${_lbl}">Role</td><td style="${_val(2)}">${escapeHtml(roleLabel(u.Role))}</td></tr>
+        <tr><td style="${_lbl}">Department</td><td style="${_val(3)}">${escapeHtml(u.Department || '—')}</td></tr>
+        <tr><td style="${_lbl}">Status</td><td style="${_val(4)}"><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td></tr>
+      </tbody>
+    </table>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-primary" onclick="closeModal('modal-user-detail');openUserEditor('${escapeHtml(u.UserID)}')">Edit</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-user-detail')">Close</button>
+    </div>`;
+  openModal('modal-user-detail');
 }
 
 function openUserEditor(userId) {
