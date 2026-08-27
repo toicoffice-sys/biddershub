@@ -259,20 +259,35 @@
   .admin-chip-role { font-size: 11px; font-weight: 600; background: var(--g100); color: var(--g700); border-radius: 4px; padding: 3px 9px; letter-spacing: .02em; }
 
   table { width: 100%; border-collapse: collapse; font-size: .87rem; }
-  th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { color: var(--ink-faint); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
-  tr:hover td { background: var(--paper-2); }
+  th, td { text-align: left; padding: 10px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  th {
+    background: linear-gradient(135deg, #0B3220 0%, #165C38 100%);
+    color: #C8E6CE; font-size: .72rem; text-transform: uppercase;
+    letter-spacing: .06em; font-weight: 700;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  tbody tr:nth-child(odd)  td { background: #FFFFFF; }
+  tbody tr:nth-child(even) td { background: #EAF4ED; }
+  tbody tr:hover td { background: #D4ECD9 !important; }
   td .control-no { display: block; margin-bottom: 2px; }
 
   /* ── Tabs ─────────────────────────────────────────── */
-  .tabs { display: flex; gap: 0; border-bottom: 2px solid var(--line); margin-bottom: 24px; flex-wrap: wrap; }
-  .tab {
-    padding: 10px 16px; font-size: .84rem; font-weight: 600; color: var(--ink-faint);
-    border: none; border-bottom: 2px solid transparent; margin-bottom: -2px;
-    background: none; transition: color .15s, border-color .15s;
+  .tabs {
+    display: flex; gap: 2px; margin-bottom: 24px; flex-wrap: wrap;
+    background: linear-gradient(135deg, #0B3220 0%, #165C38 100%);
+    border-radius: 10px; padding: 6px 8px;
+    box-shadow: 0 2px 8px rgba(8,28,18,.18);
   }
-  .tab:hover { color: var(--ink-soft); }
-  .tab.active { color: var(--g800); border-bottom-color: var(--g700); }
+  .tab {
+    padding: 9px 18px; font-size: .84rem; font-weight: 600; color: rgba(200,230,206,.75);
+    border: none; border-radius: 7px; background: none;
+    transition: background .15s, color .15s;
+  }
+  .tab:hover { background: rgba(255,255,255,.10); color: #E8F5EC; }
+  .tab.active {
+    background: linear-gradient(135deg, #31A85F 0%, #1E8048 100%);
+    color: #fff; box-shadow: 0 1px 4px rgba(8,28,18,.20);
+  }
 
   /* ── Modal ────────────────────────────────────────── */
   .modal-overlay {
