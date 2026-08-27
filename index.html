@@ -523,19 +523,45 @@
     </div>
     <input type="hidden" id="editor-bid-id">
     <input type="hidden" id="editor-bid-status">
-    <div class="field"><label>Title *</label><input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project"></div>
-    <div class="field"><label>Category</label><select id="editor-category"><option value="">— Select category —</option></select></div>
-    <div class="field"><label>Letter of Intent Submission Deadline *</label><input type="datetime-local" id="editor-deadline"></div>
-    <div class="field"><label>Description</label><textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4"></textarea></div>
-    <div class="field" id="editor-submission-status-row" style="display:none;">
-      <label>Bid Status</label>
-      <select id="editor-submission-status" onchange="handleBidStatusChange(this)">
-        <option value="open">Open — Accepting Submissions</option>
-        <option value="closed">Closed — No Longer Accepting</option>
-      </select>
-    </div>
-    <div id="bid-editor-error" class="error-text"></div>
-    <div style="display:flex; gap:10px; margin-top:14px; flex-wrap:wrap;">
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px;">
+      <tbody>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;vertical-align:middle;">Title *</td>
+          <td style="padding:6px 10px;border:1px solid #e0e5e0;background:#FFFFFF;">
+            <input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;padding:3px 0;">
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;vertical-align:middle;">Category</td>
+          <td style="padding:6px 10px;border:1px solid #e0e5e0;background:#EAF4ED;">
+            <select id="editor-category" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;padding:3px 0;cursor:pointer;"><option value="">— Select category —</option></select>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;vertical-align:middle;">LOI Deadline *</td>
+          <td style="padding:6px 10px;border:1px solid #e0e5e0;background:#FFFFFF;">
+            <input type="datetime-local" id="editor-deadline" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;padding:3px 0;">
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;vertical-align:top;">Description</td>
+          <td style="padding:6px 10px;border:1px solid #e0e5e0;background:#EAF4ED;">
+            <textarea id="editor-description" placeholder="Briefly describe the scope of work, requirements, or any relevant details for bidders." rows="4" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;padding:3px 0;resize:vertical;font-family:inherit;"></textarea>
+          </td>
+        </tr>
+        <tr id="editor-submission-status-row" style="display:none;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;vertical-align:middle;">Bid Status</td>
+          <td style="padding:6px 10px;border:1px solid #e0e5e0;background:#FFFFFF;">
+            <select id="editor-submission-status" onchange="handleBidStatusChange(this)" style="width:100%;border:none;outline:none;font-size:13px;background:transparent;padding:3px 0;cursor:pointer;">
+              <option value="open">Open — Accepting Submissions</option>
+              <option value="closed">Closed — No Longer Accepting</option>
+            </select>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+    <div id="bid-editor-error" class="error-text" style="margin-bottom:10px;"></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
       <button class="btn btn-outline" onclick="previewBidEditor()">👁 Preview</button>
       <button class="btn btn-outline" onclick="saveBidEditor()">Save Draft</button>
       <button class="btn btn-primary" id="editor-publish-toggle-btn" onclick="saveBidEditor(document.getElementById('editor-bid-status').value === 'Published' ? 'unpublish' : 'publish')">Publish</button>

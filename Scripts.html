@@ -1387,7 +1387,7 @@ function openBidEditor(bidId) {
       // Always show Bid Status for existing bids (except awarded)
       const statusRow = document.getElementById('editor-submission-status-row');
       const statusSel = document.getElementById('editor-submission-status');
-      statusRow.style.display = b.Outcome === 'Awarded' ? 'none' : 'block';
+      statusRow.style.display = b.Outcome === 'Awarded' ? 'none' : 'table-row';
       statusSel.value = (b.Status === 'Closed') ? 'closed' : 'open';
     });
   } else {
