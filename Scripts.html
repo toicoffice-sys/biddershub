@@ -633,7 +633,6 @@ function applyPublicFilter() {
       const rowBg = i % 2 === 0 ? '#ffffff' : '#F5F7FA';
       return `
     <div class="bid-list-item" style="background:${rowBg};border-radius:0;border-left:none;border-right:none;border-top:none;border-bottom:1px solid #e5e7eb;margin-bottom:0;${isClosed ? 'opacity:.85;' : ''}" onclick="openBidDetail('${b.bidId}')">
-      <div class="bli-ref">${escapeHtml(b.referenceNo || '—')}</div>
       <div class="bli-body" style="position:relative;">
         <div class="bli-title">${escapeHtml(b.title)}</div>
         ${isClosed
