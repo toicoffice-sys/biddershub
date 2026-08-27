@@ -650,7 +650,7 @@ function applyPublicFilter() {
     page.map((b, i) => {
       const isAwarded = b.status === 'Closed' && b.outcome === 'Awarded';
       const isClosed = b.status === 'Closed' && !isAwarded;
-      const rowBg = i % 2 === 0 ? '#ffffff' : '#F5F7FA';
+      const rowBg = i % 2 === 0 ? '#ffffff' : '#EAF4ED';
       return `
     <div class="bid-list-item" style="background:${rowBg};border-radius:0;border-left:none;border-right:none;border-top:none;border-bottom:1px solid #e5e7eb;margin-bottom:0;${isClosed ? 'opacity:.85;' : ''}" onclick="openBidDetail('${b.bidId}')">
       <div class="bli-body" style="position:relative;">
