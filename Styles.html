@@ -23,12 +23,12 @@
     --line:     #DAD9CE;  /* warm hairline, ledger-rule color */
 
     /* Institutional green (chrome, primary actions) */
-    --g900: #12351F;
-    --g800: #17452A;
-    --g700: #1F5C34;
-    --g600: #2A7443;
-    --g500: #3C8F55;
-    --g100: #E3ECE4;
+    --g900: #0B3220;   /* deep forest teal — nav */
+    --g800: #124830;   /* dark forest — hover states */
+    --g700: #1B6B3E;   /* medium-dark emerald — links, actions */
+    --g600: #248C50;   /* emerald — hero base, accents */
+    --g500: #31A85F;   /* bright emerald — CTA highlight */
+    --g100: #DFF0E5;   /* light tint — hover surfaces */
 
     /* Office stamp inks — the status system */
     --ink-blue:  #33506E;  /* received / pending */
@@ -130,11 +130,13 @@
      as distinct: dark institutional bar on top, a lighter banner beneath it. */
   .hero {
     width: 100%;
-    background: var(--g600);
+    background: linear-gradient(150deg, #0B3220 0%, #165C38 38%, #1E8048 70%, #248C50 100%);
     background-image:
-      radial-gradient(ellipse 1100px 280px at 12% -30%, rgba(255,255,255,.08), transparent 60%);
+      linear-gradient(150deg, #0B3220 0%, #165C38 38%, #1E8048 70%, #248C50 100%),
+      radial-gradient(ellipse 900px 260px at 10% -20%, rgba(100,220,140,.10), transparent 55%);
+    background-blend-mode: normal;
     color: #EFF3EE; padding: 44px 0 0;
-    box-shadow: 0 10px 20px -12px rgba(10,25,15,.35);
+    box-shadow: 0 10px 24px -10px rgba(8,28,18,.40);
   }
   .hero-eyebrow {
     font-family: var(--mono); font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
@@ -147,19 +149,19 @@
   .open-opps-header {
     display: flex; align-items: center; justify-content: space-between;
     padding: 14px 20px;
-    background: linear-gradient(135deg, #374151 0%, #4B5563 100%);
+    background: linear-gradient(135deg, #0B3220 0%, #165C38 100%);
     border-radius: 10px 10px 0 0;
-    box-shadow: 0 1px 4px rgba(0,0,0,.10);
+    box-shadow: 0 2px 6px rgba(8,28,18,.18);
   }
   .open-opps-title {
-    font-size: 15px; font-weight: 700; color: #F9FAFB;
-    letter-spacing: .04em; text-transform: uppercase;
+    font-size: 15px; font-weight: 700; color: #E8F5EC;
+    letter-spacing: .05em; text-transform: uppercase;
   }
   .open-opps-count {
     font-family: var(--mono); font-size: 11px; font-weight: 700;
-    background: rgba(255,255,255,0.15); color: #F3F4F6;
+    background: rgba(255,255,255,0.13); color: #C8E6CE;
     border-radius: 20px; padding: 2px 10px;
-    border: 1px solid rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.14);
   }
   .pub-tab-panel { background: #fff; border: 1px solid #d4d8d0; border-top: none; border-radius: 0 0 10px 10px; padding: 20px; }
   .pub-pager { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding-top: 14px; border-top: 1px solid #e5e7eb; }
