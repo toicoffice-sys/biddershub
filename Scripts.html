@@ -494,14 +494,34 @@ function openLOIDetail(idx) {
   if (!r) return;
   const subject = r.bidTitle ? `${r.bidTitle} — ${r.companyName}` : '—';
   document.getElementById('loi-detail-content').innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;margin-bottom:16px;">
-      <div><div class="field-label">Company Name</div><div style="font-weight:600;">${escapeHtml(r.companyName)}</div></div>
-      <div><div class="field-label">Contact Person</div><div>${escapeHtml(r.contactPerson)}</div></div>
-      <div><div class="field-label">Email</div><div><a href="mailto:${escapeHtml(r.contactEmail)}" style="color:var(--g600);">${escapeHtml(r.contactEmail)}</a></div></div>
-      <div><div class="field-label">Contact Number</div><div>${escapeHtml(r.contactNumber)}</div></div>
-      <div><div class="field-label">Bid Opportunity</div><div>${escapeHtml(r.bidTitle || '—')}</div></div>
-      <div><div class="field-label">Submitted On</div><div>${fmtDate(r.submittedOn)}</div></div>
-    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+      <tbody>
+        <tr style="background:#FFFFFF;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;">Company Name</td>
+          <td style="padding:9px 14px;font-weight:600;color:var(--ink);border:1px solid #e0e5e0;">${escapeHtml(r.companyName)}</td>
+        </tr>
+        <tr style="background:#EAF4ED;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Contact Person</td>
+          <td style="padding:9px 14px;color:var(--ink);border:1px solid #e0e5e0;">${escapeHtml(r.contactPerson)}</td>
+        </tr>
+        <tr style="background:#FFFFFF;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Email</td>
+          <td style="padding:9px 14px;border:1px solid #e0e5e0;"><a href="mailto:${escapeHtml(r.contactEmail)}" style="color:var(--g600);font-weight:600;">${escapeHtml(r.contactEmail)}</a></td>
+        </tr>
+        <tr style="background:#EAF4ED;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Contact Number</td>
+          <td style="padding:9px 14px;color:var(--ink);border:1px solid #e0e5e0;">${escapeHtml(r.contactNumber)}</td>
+        </tr>
+        <tr style="background:#FFFFFF;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Bid Opportunity</td>
+          <td style="padding:9px 14px;color:var(--ink);border:1px solid #e0e5e0;">${escapeHtml(r.bidTitle || '—')}</td>
+        </tr>
+        <tr style="background:#EAF4ED;">
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Submitted On</td>
+          <td style="padding:9px 14px;color:var(--ink);border:1px solid #e0e5e0;">${fmtDate(r.submittedOn)}</td>
+        </tr>
+      </tbody>
+    </table>
     <div style="display:flex;gap:10px;margin-top:8px;">
       <button class="btn btn-primary" data-email="${escapeHtml(r.contactEmail)}" data-company="${escapeHtml(r.companyName)}" onclick="closeModal('modal-loi-detail');openLOIEmail(this.dataset.email,this.dataset.company)">Send Email</button>
       <button class="btn btn-outline" onclick="closeModal('modal-loi-detail')">Close</button>
