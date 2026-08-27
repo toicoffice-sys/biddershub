@@ -1806,17 +1806,43 @@ async function deleteUserAction(userId, name) {
 }
 
 // ── STAFF: AUDIT LOG (cpd_admin only) ────────────────────────────
+let _AUDIT_LOGS = [];
+let _AUDIT_PAGE = 1;
+const _AUDIT_PAGE_SIZE = 10;
+
 async function loadAuditLog() {
   const el = document.getElementById('staff-audit-table');
   el.innerHTML = '<p class="hint">Loading…</p>';
   try {
-    const res = await gsRun('getAuditLog', SESSION.token, 150);
-    if (!res.logs.length) { el.innerHTML = '<div class="empty-state">No audit log entries yet.</div>'; return; }
-    el.innerHTML = `<table><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>` +
-      res.logs.map(l => `<tr>
-        <td>${fmtDate(l.Timestamp)}</td><td>${escapeHtml(l.ActorEmail)}</td><td>${escapeHtml(l.Action)}</td>
-        <td>${escapeHtml(l.EntityType)}</td><td>${escapeHtml(l.Details)}</td>
-      </tr>`).join('') + `</tbody></table>`;
+    const res = await gsRun('getAuditLog', SESSION.token, 500);
+    _AUDIT_LOGS = res.logs || [];
+    _AUDIT_PAGE = 1;
+    renderAuditLog();
   } catch (e) { el.innerHTML = '<p class="error-text">Failed to load audit log. ' + escapeHtml(e.message || String(e)) + '</p>'; }
+}
+
+function renderAuditLog() {
+  const el = document.getElementById('staff-audit-table');
+  if (!_AUDIT_LOGS.length) { el.innerHTML = '<div class="empty-state">No audit log entries yet.</div>'; return; }
+  const total = _AUDIT_LOGS.length;
+  const totalPages = Math.ceil(total / _AUDIT_PAGE_SIZE);
+  _AUDIT_PAGE = Math.min(Math.max(_AUDIT_PAGE, 1), totalPages);
+  const start = (_AUDIT_PAGE - 1) * _AUDIT_PAGE_SIZE;
+  const page = _AUDIT_LOGS.slice(start, start + _AUDIT_PAGE_SIZE);
+  el.innerHTML =
+    `<table><thead><tr><th>Timestamp</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>` +
+    page.map(l => `<tr>
+      <td>${fmtDate(l.Timestamp)}</td><td>${escapeHtml(l.ActorEmail)}</td><td>${escapeHtml(l.Action)}</td>
+      <td>${escapeHtml(l.EntityType)}</td><td>${escapeHtml(l.Details)}</td>
+    </tr>`).join('') +
+    `</tbody></table>
+    <div class="pub-pager" style="margin-top:12px;">
+      <span class="pub-pager-info">Showing ${start + 1}–${Math.min(start + _AUDIT_PAGE_SIZE, total)} of ${total} entries</span>
+      <div style="display:flex;gap:6px;">
+        <button class="pub-pager-btn" onclick="_AUDIT_PAGE--;renderAuditLog();" ${_AUDIT_PAGE <= 1 ? 'disabled' : ''}>← Prev</button>
+        <span style="padding:5px 10px;font-size:13px;color:var(--ink-soft);">Page ${_AUDIT_PAGE} / ${totalPages}</span>
+        <button class="pub-pager-btn" onclick="_AUDIT_PAGE++;renderAuditLog();" ${_AUDIT_PAGE >= totalPages ? 'disabled' : ''}>Next →</button>
+      </div>
+    </div>`;
 }
 </script>
