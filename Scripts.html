@@ -1671,11 +1671,14 @@ async function loadUsers() {
   try {
     const res = await gsRun('getUsers', SESSION.token);
     STAFF_USERS_CACHE = res.users;
-    el.innerHTML = `<table><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>` +
+    el.innerHTML = `<table style="table-layout:fixed;width:100%;"><colgroup><col style="width:24%;"><col style="width:18%;"><col style="width:12%;"><col style="width:10%;"><col style="width:10%;"><col style="width:26%;"></colgroup><thead><tr><th>Email</th><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Actions</th></tr></thead><tbody>` +
       res.users.map(u => `<tr>
-        <td>${escapeHtml(u.Email)}</td><td>${escapeHtml(u.FullName)}</td><td>${escapeHtml(roleLabel(u.Role))}</td>
-        <td>${escapeHtml(u.Department)}</td><td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
-        <td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u.Email)}">${escapeHtml(u.Email)}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u.FullName)}">${escapeHtml(u.FullName)}</td>
+        <td>${escapeHtml(roleLabel(u.Role))}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(u.Department)}">${escapeHtml(u.Department)}</td>
+        <td><span class="stamp ${u.Status === 'Active' ? 'stamp-green' : 'stamp-red'}">${escapeHtml(u.Status)}</span></td>
+        <td style="white-space:nowrap;">
           <button class="btn btn-sm btn-outline" onclick="openUserEditor('${u.UserID}')">Edit</button>
           ${u.Status === 'Active' ? `<button class="btn btn-sm btn-danger" onclick="deactivateUserAction('${u.UserID}')">Deactivate</button>` : ''}
           <button class="btn btn-sm btn-danger" style="padding:4px 8px;" title="Delete user" data-uid="${escapeHtml(u.UserID)}" data-name="${escapeHtml(u.FullName)}" onclick="deleteUserAction(this.dataset.uid, this.dataset.name)">🗑</button>
