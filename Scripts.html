@@ -1195,7 +1195,16 @@ async function viewSubmissions(bidId) {
 function renderMyBidsTable(bids) {
   const el = document.getElementById('staff-mybids-table');
   if (!bids.length) { el.innerHTML = '<div class="empty-state">No bid opportunities yet.</div>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Title</th><th>Category</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
+  el.innerHTML = `<table style="table-layout:fixed;width:100%;">
+    <colgroup>
+      <col style="width:28%;">
+      <col style="width:14%;">
+      <col style="width:16%;">
+      <col style="width:10%;">
+      <col style="width:12%;">
+      <col style="width:20%;">
+    </colgroup>
+    <thead><tr><th>Title</th><th>Category</th><th>Letter of Intent Submission Deadline</th><th>LETTER OF INTENT</th><th>STATUS</th><th>Actions</th></tr></thead><tbody>` +
     bids.map(b => {
       const isPublished = b.Status === 'Published';
       const isAwarded = b.Outcome === 'Awarded' || b.loiAwarded === true;
@@ -1207,19 +1216,19 @@ function renderMyBidsTable(bids) {
              <button class="btn btn-sm" style="font-size:11px;padding:2px 8px;background:#fff;border:1px solid #d1d5db;color:#6b7280;" onclick="undoAwardAction('${b.BidID}')">Undo</button>
            </span>`
         : (isPublished || isClosed)
-          ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;">
+          ? `<select onchange="updateBidStatusInline('${b.BidID}', this.value, this)" style="font-size:12px;padding:3px 6px;border:1px solid #d1d5db;border-radius:5px;background:#fff;width:100%;">
               <option value="Open" ${currentVal === 'Open' ? 'selected' : ''}>Open</option>
               <option value="Closed" ${currentVal === 'Closed' ? 'selected' : ''}>Closed</option>
               <option value="Awarded" ${currentVal === 'Awarded' ? 'selected' : ''}>Awarded</option>
              </select>`
           : `<span class="hint">—</span>`;
       return `<tr>
-        <td>${escapeHtml(b.Title)}</td>
-        <td>${escapeHtml(b.Category)}</td>
-        <td>${fmtDate(b.SubmissionDeadline)}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(b.Title)}">${escapeHtml(b.Title)}</td>
+        <td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;" title="${escapeHtml(b.Category)}">${escapeHtml(b.Category)}</td>
+        <td style="white-space:nowrap;font-size:12px;">${fmtDate(b.SubmissionDeadline)}</td>
         <td style="text-align:center;font-weight:600;">${b.submissionCount || 0}</td>
         <td>${dropdown}</td>
-        <td>${bidActionsHtml(b)}</td>
+        <td style="white-space:nowrap;">${bidActionsHtml(b)}</td>
       </tr>`;
     }).join('') + `</tbody></table>`;
 }
