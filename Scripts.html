@@ -692,26 +692,60 @@ async function openBidDetail(bidId) {
 }
 
 function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
-  let html = `
-    <span class="stamp ${stampClass(bid.status)}">${escapeHtml(bid.status)}${bid.outcome ? ' · ' + escapeHtml(bid.outcome) : ''}</span>
-    <div class="control-no" style="margin-top:8px;">${escapeHtml(bid.referenceNo || '')}</div>
-    <h2>${escapeHtml(bid.title)}</h2>
-    <div style="margin-top:10px;"><b>📅 Submission Deadline:</b> ${fmtDate(bid.submissionDeadline)}</div>
-    <div class="hint" style="margin-top:6px;">Published: ${fmtDate(bid.publishedOn)}${bid.closedOn ? ' · Closed: ' + fmtDate(bid.closedOn) : ''}</div>`;
-
-  html += `<h4 style="margin-top:16px;">Description</h4>
-    <p style="white-space:pre-wrap;">${escapeHtml(bid.description || '—')}</p>`;
-
   const isAwarded = bid.status === 'Closed' && bid.outcome === 'Awarded';
 
+  // ── Green gradient header ──
+  let html = `
+    <div style="margin:-28px -28px 0;border-radius:10px 10px 0 0;background:linear-gradient(135deg,#254C3A 0%,#307652 100%);padding:22px 28px 20px 28px;">
+      <div style="margin-bottom:10px;">
+        <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 10px;border-radius:4px;letter-spacing:.04em;background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.28);">
+          <span style="width:6px;height:6px;border-radius:50%;background:#fff;display:inline-block;flex-shrink:0;"></span>
+          ${escapeHtml(bid.status)}${bid.outcome ? ' · ' + escapeHtml(bid.outcome) : ''}
+        </span>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:.1em;margin-bottom:6px;">${escapeHtml(bid.referenceNo || '')}</div>
+      <h2 style="color:#fff;margin:0;font-size:1.35rem;line-height:1.3;padding-right:32px;">${escapeHtml(bid.title)}</h2>
+    </div>`;
+
+  // ── Details table ──
+  html += `
+    <table style="width:100%;border-collapse:collapse;margin:20px 0 0;font-size:13px;">
+      <tbody>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;width:36%;">Submission Deadline</td>
+          <td style="padding:9px 14px;font-weight:600;color:var(--ink);border:1px solid #e0e5e0;">📅 ${fmtDate(bid.submissionDeadline)}</td>
+        </tr>
+        <tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Published On</td>
+          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${fmtDate(bid.publishedOn)}</td>
+        </tr>
+        ${bid.closedOn ? `<tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Closed On</td>
+          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${fmtDate(bid.closedOn)}</td>
+        </tr>` : ''}
+        ${bid.category ? `<tr>
+          <td style="padding:9px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-faint);background:#f4f6f4;border:1px solid #e0e5e0;">Category</td>
+          <td style="padding:9px 14px;color:var(--ink-soft);border:1px solid #e0e5e0;">${escapeHtml(bid.category)}</td>
+        </tr>` : ''}
+      </tbody>
+    </table>`;
+
+  // ── Description ──
+  html += `
+    <div style="margin-top:20px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);margin-bottom:6px;">Description</div>
+      <div style="white-space:pre-wrap;font-size:13.5px;color:var(--ink-soft);line-height:1.65;background:#f9faf9;border:1px solid #e0e5e0;border-radius:6px;padding:12px 14px;">${escapeHtml(bid.description || '—')}</div>
+    </div>`;
+
+  // ── Status banners ──
   if (isAwarded) {
     html += `
-      <div style="margin-top:20px;padding:12px 16px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;font-size:13px;color:#166534;font-weight:600;">
+      <div style="margin-top:16px;padding:12px 16px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:8px;font-size:13px;color:#166534;font-weight:600;">
         🏆 This bid opportunity has been awarded. No further submissions are being accepted.
       </div>`;
   } else if (bid.status === 'Closed') {
     html += `
-      <div style="margin-top:20px;padding:12px 16px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;font-size:13px;color:#991b1b;font-weight:600;">
+      <div style="margin-top:16px;padding:12px 16px;background:#fef2f2;border:1.5px solid #fca5a5;border-radius:8px;font-size:13px;color:#991b1b;font-weight:600;">
         🔒 This bid opportunity is now closed. No further submissions are being accepted.
       </div>`;
   }
@@ -719,7 +753,7 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
   let showSubmissionSlots = false;
   if (!isAwarded) {
     if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
-      html += `<h4 style="margin-top:16px;">Submit Your Bid</h4>`;
+      html += `<h4 style="margin-top:20px;">Submit Your Bid</h4>`;
       const isAccredited = vendorProfile && vendorProfile.AccreditationStatus === 'Approved';
       if (!isAccredited) {
         const statusLabel = vendorProfile ? (vendorProfile.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : vendorProfile.AccreditationStatus) : 'Not on file';
@@ -736,15 +770,15 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
         showSubmissionSlots = true;
       }
     } else if (!SESSION.token && bid.status === 'Published') {
-      html += `<h4 style="margin-top:16px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+      html += `<h4 style="margin-top:20px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
     }
 
     // LOI inline form — visible to public and vendors, hidden for staff
     const isStaff = SESSION.token && ['cpd_admin','cpd_officer','proponent'].includes(SESSION.user.role);
     if (!isStaff && bid.status === 'Published') {
       html += `
-        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line);">
-          <h4 style="margin-bottom:4px;">Interested in this bid?</h4>
+        <div style="margin-top:20px;padding:18px 20px;border:1px solid #e0e5e0;border-radius:8px;background:#f9faf9;">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-faint);margin-bottom:6px;">Interested in this bid?</div>
           <p class="hint" style="margin-bottom:14px;">Fill in your details below and submit a Letter of Intent. Our procurement team will reach out to you.</p>
           <input type="hidden" id="bid-loi-title" value="${escapeHtml(bid.title)}">
           <div style="margin-bottom:12px;">
@@ -762,12 +796,15 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
               <input type="tel" id="bid-loi-number" placeholder="e.g. 09xx-xxx-xxxx"></div>
           </div>
           <p id="bid-loi-error" class="error-text" style="margin-top:8px;min-height:18px;"></p>
-          <button class="btn btn-primary" style="margin-top:4px;" onclick="submitBidLOI(this)">Submit Letter of Intent</button>
+          <button class="btn btn-primary" style="margin-top:8px;" onclick="submitBidLOI(this)">Submit Letter of Intent</button>
         </div>`;
     }
   }
 
   document.getElementById('bid-detail-content').innerHTML = html;
+  // Style close button white to contrast with green header
+  const closeBtn = document.querySelector('#modal-bid-detail .modal-close');
+  if (closeBtn) { closeBtn.style.color = '#fff'; closeBtn.style.opacity = '0.85'; }
   if (showSubmissionSlots) renderSubmissionDocSlots();
 }
 
