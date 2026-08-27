@@ -513,8 +513,11 @@
 <!-- ── MODAL: BID EDITOR (staff) ─────────────────────────── -->
 <div id="modal-bid-editor" class="modal-overlay hidden">
   <div class="modal" style="max-width:560px;">
-    <button class="modal-close" onclick="closeModal('modal-bid-editor')">&times;</button>
-    <h3 id="bid-editor-title">New Bid Opportunity</h3>
+    <div style="margin:-28px -28px 20px;border-radius:10px 10px 0 0;background:linear-gradient(135deg,#254C3A 0%,#307652 100%);padding:22px 60px 18px 28px;position:relative;">
+      <button class="modal-close" onclick="closeModal('modal-bid-editor')" style="position:absolute;top:14px;right:16px;color:#fff;opacity:.85;">&times;</button>
+      <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.5);letter-spacing:.1em;margin-bottom:6px;text-transform:uppercase;">Staff Portal · Bid Management</div>
+      <h3 id="bid-editor-title" style="color:#fff;margin:0;font-size:1.1rem;line-height:1.3;">New Bid Opportunity</h3>
+    </div>
     <input type="hidden" id="editor-bid-id">
     <input type="hidden" id="editor-bid-status">
     <div class="field"><label>Title *</label><input type="text" id="editor-title" placeholder="e.g. Solar Panel Installation Project"></div>
