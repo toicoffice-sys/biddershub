@@ -1768,7 +1768,7 @@ function openUserEditor(userId) {
   document.getElementById('edituser-fullName').value = existing ? existing.FullName : '';
   document.getElementById('edituser-role').value = existing ? existing.Role : 'cpd_officer';
   document.getElementById('edituser-department').value = existing ? existing.Department : '';
-  document.getElementById('edituser-status-field').style.display = existing ? '' : 'none';
+  document.getElementById('edituser-status-field').style.display = existing ? 'table-row' : 'none';
   document.getElementById('edituser-status').value = existing ? existing.Status : 'Active';
   document.getElementById('edituser-error').textContent = '';
   openModal('modal-edit-user');
