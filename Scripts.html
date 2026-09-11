@@ -888,7 +888,7 @@ async function loginCheckAccess() {
     } else {
       errEl.textContent = res.message || 'Account not found.';
     }
-  } catch (e) { errEl.textContent = 'Something went wrong. Please try again.'; }
+  } catch (e) { errEl.textContent = e.message || 'Something went wrong. Please try again.'; }
 }
 
 async function loginResendOtp() {

@@ -2188,7 +2188,26 @@ function seedSampleVendors() {
 }
 
 // ── SETUP ─────────────────────────────────────────────────────────
+/** Run once from the Apps Script editor to configure required Script Properties.
+ *  Usage: open Apps Script editor → select initProperties → click Run.
+ *  Or paste the spreadsheet ID directly here before running.
+ */
+function initProperties() {
+  const props = PropertiesService.getScriptProperties();
+  // ── Set SPREADSHEET_ID ──────────────────────────────────────────
+  // Paste your Google Spreadsheet ID here (the long string in the Sheet URL):
+  const ssId = 'PASTE_SPREADSHEET_ID_HERE';
+  if (!ssId || ssId === 'PASTE_SPREADSHEET_ID_HERE') {
+    throw new Error('Edit initProperties() and paste your Spreadsheet ID before running.');
+  }
+  props.setProperty('SPREADSHEET_ID', ssId);
+  props.setProperty('NOTIF_EMAIL', 'procurement.office@dlsl.edu.ph');
+  console.log('✅ Script Properties set. SPREADSHEET_ID =', ssId);
+  console.log('Now run setup() to initialize all sheets.');
+}
+
 function setup() {
+  if (!SPREADSHEET_ID) throw new Error('Run initProperties() first to set SPREADSHEET_ID.');
   _initUsers();
   _initVendors();
   _initBids();
