@@ -195,6 +195,7 @@ function adminSaveCategory(token, data) {
         sheet.getRange(i + 1, h.indexOf('IsActive') + 1).setValue(data.isActive !== false);
         sheet.getRange(i + 1, h.indexOf('LastModified') + 1).setValue(now);
         _logRaw(user, 'UPDATE', 'Category', data.id, 'Renamed to: ' + name);
+        try { CacheService.getScriptCache().remove(CACHE_CONFIG); } catch(e) {}
         return { ok: true };
       }
     }
@@ -215,6 +216,7 @@ function adminSaveCategory(token, data) {
     const id = _id();
     sheet.appendRow([id, name, (data.description || '').trim(), true, now, user.email, now]);
     _logRaw(user, 'CREATE', 'Category', id, 'Name: ' + name);
+    _cacheDelete(CACHE_CONFIG);
     return { ok: true, id };
   }
 }
@@ -236,6 +238,7 @@ function adminDeleteCategory(token, id) {
       sheet.getRange(i + 1, activeIdx + 1).setValue(false);
       sheet.getRange(i + 1, modIdx + 1).setValue(new Date().toISOString());
       _logRaw(user, 'DELETE', 'Category', id, 'Deactivated: ' + catName);
+      _cacheDelete(CACHE_CONFIG);
       return { ok: true };
     }
   }
@@ -253,7 +256,7 @@ function getInitData(token) {
   let config = _cacheGet(CACHE_CONFIG);
   if (!config) {
     config = {
-      categories: CATEGORIES,
+      categories: getCategories(),
       documentTypes: DOCUMENT_TYPES,
       bidDocumentTypes: BID_DOCUMENT_TYPES,
       bidSubmissionDocumentTypes: BID_SUBMISSION_DOCUMENT_TYPES,
