@@ -1,14 +1,27 @@
-// ╔══════════════════════════════════════════════════════════════╗
-// ║   BIDDERSHUB — DLSL Central Procurement Bidding Portal        ║
-// ║   Public bid board · Vendor accreditation · Inquiries (Q&A)   ║
-// ║   Auth: Email + OTP (2FA) for staff and vendors                ║
-// ╚══════════════════════════════════════════════════════════════╝
+// ============================================================
+// BiddersHub — Google Apps Script
+// Version: 1.1.0
+// Last Updated: 2026-09-02
+// Developer: A2OM, DLSL TOIC
+// Description: DLSL Central Procurement Bidding Portal — public bid board, vendor accreditation, Q&A
+// Changelog:
+//   v1.1.0 - 2026-09-02 - Security: SPREADSHEET_ID + NOTIF_EMAIL from PropertiesService; X-Frame SAMEORIGIN; staff/admin from Properties
+//   v1.0.0 - Initial release
+// ============================================================
 //
 // This is a STANDALONE Apps Script project bound by ID to its own
 // spreadsheet — it does NOT read from or write to the DLSP Shared
-// Supplier Database. See SPREADSHEET_ID below.
+// Supplier Database.
+//
+// ⚠️  Required Script Properties (set once via Project Settings → Script Properties):
+//       SPREADSHEET_ID  — the spreadsheet this project writes to
+//       NOTIF_EMAIL     — procurement office email for notifications and reply-to
+//       ADMIN_<tag>_EMAIL / ADMIN_<tag>_NAME / ADMIN_<tag>_ROLE — one set per admin
+//       STAFF_<tag>_EMAIL / STAFF_<tag>_NAME / STAFF_<tag>_ROLE — one set per staff
+//     After setting ADMIN_*/STAFF_* keys, run seedAdminsFromProperties() from the editor.
 
-const SPREADSHEET_ID = '1M4Ns7GIO4veZ4rUgCUygjRBe2n-Wx_CdzZ1vZBsSprM';
+const SPREADSHEET_ID = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID');
+const NOTIF_EMAIL    = PropertiesService.getScriptProperties().getProperty('NOTIF_EMAIL') || 'procurement.office@dlsl.edu.ph';
 
 const SH = {
   USERS:       'Users',
@@ -19,7 +32,10 @@ const SH = {
   AUDIT:       'AuditLog',
   CONFIG:      'Config',
   LOI:         'LettersOfIntent',
+  CATEGORIES:  'Categories',
 };
+
+const CAT_HEADERS = ['CategoryID','Name','Description','IsActive','CreatedOn','CreatedBy','LastModified'];
 
 const LOI_HEADERS = ['LOIID','CompanyName','ContactPerson','ContactEmail','ContactNumber','BidTitle','SubmittedOn','Status'];
 
@@ -86,11 +102,23 @@ const CACHE_LOI_MAP  = 'loi_count_v1';
 
 // ── PROPERTIES SERVICE SCHEMA (for audit reference) ───────────
 // ScriptProperties keys managed by this application:
-//   sess_<token>   — Session object: { username, expiry, profile }
-//   otp_<email>    — OTP entry: { code, expiry } (single-use, deleted on verify)
+//   SPREADSHEET_ID          — Bound spreadsheet ID (required, set once)
+//   NOTIF_EMAIL             — Procurement office email for notifications/reply-to
+//   ADMIN_<tag>_EMAIL       — Admin email  (e.g. ADMIN_1_EMAIL)
+//   ADMIN_<tag>_NAME        — Admin full name
+//   ADMIN_<tag>_ROLE        — Admin role: cpd_admin (default if omitted)
+//   ADMIN_<tag>_DEPT        — Admin department (optional)
+//   STAFF_<tag>_EMAIL       — Staff email  (e.g. STAFF_1_EMAIL)
+//   STAFF_<tag>_NAME        — Staff full name
+//   STAFF_<tag>_ROLE        — Staff role: cpd_officer or proponent
+//   STAFF_<tag>_DEPT        — Staff department (optional)
+//   sess_<token>            — Session object: { username, expiry, profile }
+//   otp_<email>             — OTP entry: { code, expiry } (single-use, deleted on verify)
+//   act_otp_<email>         — Action confirmation OTP (award/close operations)
+//   seq_<prefix>_<year>     — Sequential registry counter (ITB-YYYY-NNNN, ACC-YYYY-NNNN)
 // CacheService keys (script-scoped, auto-expires):
-//   chk_<email>       — Cached login profile from checkAccess (TTL: 900s)
-//   cache_bids_v1     — Published/Closed bid opportunities (TTL: 300s)
+//   chk_<email>             — Cached login profile from checkAccess (TTL: 900s)
+//   cache_bids_v1           — Published/Closed bid opportunities (TTL: 300s)
 // ──────────────────────────────────────────────────────────────
 
 // ── WEB APP ENTRY ─────────────────────────────────────────────
@@ -99,7 +127,7 @@ function doGet(e) {
     .createTemplateFromFile('index')
     .evaluate()
     .setTitle('DLSL CPO — Procurement Portal')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.SAMEORIGIN)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -107,7 +135,111 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
-function getCategories() { return CATEGORIES; }
+function getCategories() {
+  try {
+    const ss = _ss();
+    const sheet = ss.getSheetByName(SH.CATEGORIES);
+    if (!sheet || sheet.getLastRow() < 2) return CATEGORIES;
+    const rows = sheet.getDataRange().getValues();
+    const h = rows[0];
+    const nameIdx = h.indexOf('Name');
+    const activeIdx = h.indexOf('IsActive');
+    const cats = rows.slice(1)
+      .filter(r => r[activeIdx] === true || r[activeIdx] === 'TRUE' || r[activeIdx] === 1)
+      .map(r => String(r[nameIdx]).trim())
+      .filter(Boolean);
+    return cats.length ? cats : CATEGORIES;
+  } catch (e) { return CATEGORIES; }
+}
+
+function adminGetCategories(token) {
+  const user = requireAuth(token);
+  if (!isAdmin(user)) throw new Error('Administrator authorization required.');
+  const sheet = getSheet(SH.CATEGORIES);
+  if (sheet.getLastRow() < 2) {
+    // Seed from hardcoded list on first access
+    const now = new Date().toISOString();
+    CATEGORIES.forEach(name => {
+      sheet.appendRow([_id(), name, '', true, now, user.email, now]);
+    });
+    _fmtHeader(sheet, '#1a3a5c', CAT_HEADERS.length);
+  }
+  const rows = sheetToObjects(sheet);
+  return { ok: true, categories: rows };
+}
+
+function adminSaveCategory(token, data) {
+  const user = requireAuth(token);
+  if (!isAdmin(user)) throw new Error('Administrator authorization required.');
+  const name = (data.name || '').trim();
+  if (!name) throw new Error('Category name is required.');
+  if (name.length > 80) throw new Error('Category name is too long (max 80 characters).');
+
+  const sheet = getSheet(SH.CATEGORIES);
+  const now = new Date().toISOString();
+
+  if (data.id) {
+    // Update existing
+    const rows = sheet.getDataRange().getValues();
+    const h = rows[0];
+    const idIdx = h.indexOf('CategoryID');
+    const nameIdx = h.indexOf('Name');
+    // Duplicate name check (excluding self)
+    const dup = rows.slice(1).some(r => r[idIdx] !== data.id && String(r[nameIdx]).toLowerCase() === name.toLowerCase());
+    if (dup) throw new Error('A category with that name already exists.');
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][idIdx] === data.id) {
+        sheet.getRange(i + 1, h.indexOf('Name') + 1).setValue(name);
+        sheet.getRange(i + 1, h.indexOf('Description') + 1).setValue((data.description || '').trim());
+        sheet.getRange(i + 1, h.indexOf('IsActive') + 1).setValue(data.isActive !== false);
+        sheet.getRange(i + 1, h.indexOf('LastModified') + 1).setValue(now);
+        _logRaw(user, 'UPDATE', 'Category', data.id, 'Renamed to: ' + name);
+        return { ok: true };
+      }
+    }
+    throw new Error('Category not found.');
+  } else {
+    // New category — check for duplicate
+    if (sheet.getLastRow() > 1) {
+      const rows = sheet.getDataRange().getValues();
+      const h = rows[0];
+      const nameIdx = h.indexOf('Name');
+      if (rows.slice(1).some(r => String(r[nameIdx]).toLowerCase() === name.toLowerCase())) {
+        throw new Error('A category with that name already exists.');
+      }
+    } else {
+      sheet.appendRow(CAT_HEADERS);
+      _fmtHeader(sheet, '#1a3a5c', CAT_HEADERS.length);
+    }
+    const id = _id();
+    sheet.appendRow([id, name, (data.description || '').trim(), true, now, user.email, now]);
+    _logRaw(user, 'CREATE', 'Category', id, 'Name: ' + name);
+    return { ok: true, id };
+  }
+}
+
+function adminDeleteCategory(token, id) {
+  const user = requireAuth(token);
+  if (!isAdmin(user)) throw new Error('Administrator authorization required.');
+  const sheet = getSheet(SH.CATEGORIES);
+  if (sheet.getLastRow() < 2) throw new Error('Category not found.');
+  const rows = sheet.getDataRange().getValues();
+  const h = rows[0];
+  const idIdx = h.indexOf('CategoryID');
+  const nameIdx = h.indexOf('Name');
+  const activeIdx = h.indexOf('IsActive');
+  const modIdx = h.indexOf('LastModified');
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][idIdx] === id) {
+      const catName = rows[i][nameIdx];
+      sheet.getRange(i + 1, activeIdx + 1).setValue(false);
+      sheet.getRange(i + 1, modIdx + 1).setValue(new Date().toISOString());
+      _logRaw(user, 'DELETE', 'Category', id, 'Deactivated: ' + catName);
+      return { ok: true };
+    }
+  }
+  throw new Error('Category not found.');
+}
 
 /** Returns all Letters of Intent — staff only. */
 /**
@@ -334,7 +466,10 @@ function revokeAward(token, loiId, otp) {
 }
 
 // ── SPREADSHEET HELPERS ────────────────────────────────────────
-function _ss() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
+function _ss() {
+  if (!SPREADSHEET_ID) throw new Error('SPREADSHEET_ID is not set in Script Properties. Contact the system administrator.');
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
 
 function getSheet(name) {
   const ss = _ss();
@@ -467,6 +602,33 @@ function requireAuth(token) {
 function isCPD(user)   { return ['cpd_admin', 'cpd_officer'].includes(user.role); }
 function isAdmin(user) { return user.role === 'cpd_admin'; }
 
+/**
+ * Returns staff accounts registered in ScriptProperties as the authoritative source.
+ * Key patterns (tag is any alphanumeric identifier, e.g. "1", "TOIC", "CPD"):
+ *   ADMIN_<tag>_EMAIL / _NAME / _ROLE / _DEPT  — role defaults to 'cpd_admin'
+ *   STAFF_<tag>_EMAIL / _NAME / _ROLE / _DEPT  — role must be explicitly set
+ * After adding keys, run seedAdminsFromProperties() to sync into the Users sheet.
+ */
+function _getStaffFromProperties() {
+  const props = PropertiesService.getScriptProperties().getProperties();
+  const staffMap = {};
+  Object.keys(props).forEach(function(key) {
+    const m = key.match(/^(STAFF|ADMIN)_(.+)_EMAIL$/i);
+    if (!m) return;
+    const prefix = m[1].toUpperCase();
+    const tag    = m[2];
+    const email  = (props[key] || '').trim().toLowerCase();
+    if (!email) return;
+    staffMap[email] = {
+      email:      email,
+      fullName:   (props[prefix + '_' + tag + '_NAME'] || '').trim() || email,
+      role:       (props[prefix + '_' + tag + '_ROLE'] || '').trim() || (prefix === 'ADMIN' ? 'cpd_admin' : 'cpd_officer'),
+      department: (props[prefix + '_' + tag + '_DEPT'] || '').trim(),
+    };
+  });
+  return Object.values(staffMap);
+}
+
 // ── EMAIL OTP AUTH ─────────────────────────────────────────────
 function _maskEmail(email) {
   if (!email || !email.includes('@')) return email;
@@ -488,7 +650,16 @@ function checkAccess(email) {
     return { success: false, message: 'Please enter a valid email address.' };
   }
 
-  // 1. Staff lookup
+  // 0. Properties-registered staff (authoritative — takes precedence over Users sheet)
+  const propStaff = _getStaffFromProperties();
+  const propMatch = propStaff.find(function(s) { return s.email === normalized; });
+  if (propMatch) {
+    const user = { fullName: propMatch.fullName, role: propMatch.role, department: propMatch.department, email: propMatch.email, accountType: 'staff' };
+    _cacheSet('chk_' + normalized, user, 900);
+    return { success: true, step: 'otp', maskedEmail: _maskEmail(normalized) };
+  }
+
+  // 1. Staff lookup (Users sheet)
   const uData = getSheet(SH.USERS).getDataRange().getValues();
   if (uData.length > 1) {
     const h = uData[0];
@@ -908,13 +1079,13 @@ function submitLetterOfIntent(data) {
       'Please visit the link below to apply:\n\n' +
       ACCREDITATION_URL + '\n\n' +
       'Our team will review your submission and reach out to you within 3–5 business days. ' +
-      'For inquiries, you may email us at procurement.office@dlsl.edu.ph.\n\n' +
+      'For inquiries, you may email us at ' + NOTIF_EMAIL + '.\n\n' +
       '— De La Salle Lipa Procurement Office');
   } catch (e) { console.error('LOI auto-reply failed for ' + contactEmail + ':', e); }
 
   // Notify CPO office
   try {
-    _mail('procurement.office@dlsl.edu.ph', cpoSubject,
+    _mail(NOTIF_EMAIL, cpoSubject,
       'A new Letter of Intent has been submitted via the DLSL Procurement Portal.\n\n' +
       (bidTitle ? '  Bid            : ' + bidTitle + '\n' : '') +
       '  Company Name   : ' + companyName   + '\n' +
@@ -946,14 +1117,14 @@ function sendEmailToVendor(token, to, subject, body) {
   return { success: true };
 }
 
-/** Central mailer — display name: De La Salle Lipa Procurement Office, reply-to: procurement.office@dlsl.edu.ph */
+/** Central mailer — display name: De La Salle Lipa Procurement Office, reply-to: NOTIF_EMAIL */
 function _mail(to, subject, body) {
   MailApp.sendEmail({
     to: to,
     subject: subject,
     body: body,
     name: 'De La Salle Lipa Procurement Office',
-    replyTo: 'procurement.office@dlsl.edu.ph',
+    replyTo: NOTIF_EMAIL,
   });
 }
 
@@ -1186,7 +1357,7 @@ function createBid(token, d) {
   if (!isCPD(user)) throw new Error('Only CPD staff can post a bid opportunity.');
   if (!d.title || !d.title.trim()) throw new Error('Title is required.');
   if (d.title.trim().length > 200) throw new Error('Title is too long.');
-  if (!d.category || !CATEGORIES.includes(d.category)) throw new Error('Please select a valid category.');
+  if (!d.category || !getCategories().includes(d.category)) throw new Error('Please select a valid category.');
   if (!d.submissionDeadline) throw new Error('Submission deadline is required.');
   if (d.description && d.description.length > 5000) throw new Error('Description is too long.');
 
@@ -1905,6 +2076,62 @@ function grantToicOfficeAdmin() {
     console.log('✅ Updated ' + email + ' to CPD Administrator / Active.');
   }
   _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
+}
+
+/**
+ * One-time helper: run from the Apps Script editor after adding ADMIN_* or STAFF_*
+ * keys to Script Properties (Project Settings → Script Properties).
+ * Syncs Properties-registered accounts into the Users sheet so they can log in
+ * via OTP immediately. Safe to re-run — upserts, never duplicates.
+ *
+ * Example keys to set first:
+ *   ADMIN_1_EMAIL = toic.office@dlsl.edu.ph
+ *   ADMIN_1_NAME  = TOIC Office
+ *   ADMIN_1_ROLE  = cpd_admin
+ *   ADMIN_1_DEPT  = TOIC
+ */
+function seedAdminsFromProperties() {
+  const staff = _getStaffFromProperties();
+  if (!staff.length) {
+    console.log('No ADMIN_* or STAFF_* keys found in Script Properties. Nothing to seed.');
+    console.log('Add keys via: Project Settings → Script Properties, then re-run this function.');
+    return;
+  }
+  const sheet = getSheet(SH.USERS);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(USER_HEADERS);
+    _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
+  } else {
+    const firstRow = sheet.getRange(1, 1, 1, USER_HEADERS.length).getValues()[0];
+    if (firstRow[0] !== 'UserID') {
+      sheet.insertRowBefore(1);
+      sheet.getRange(1, 1, 1, USER_HEADERS.length).setValues([USER_HEADERS]);
+      _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
+    }
+  }
+  const now = new Date().toISOString();
+  let seeded = 0;
+  staff.forEach(function(s) {
+    const rowIndex = _findRowIndex(sheet, 'Email', s.email);
+    if (rowIndex === -1) {
+      sheet.appendRow(_rowFromObj(USER_HEADERS, {
+        UserID: _id(), Email: s.email, FullName: s.fullName, Role: s.role,
+        Department: s.department || '', Status: 'Active', AddedBy: 'system', AddedOn: now,
+      }));
+      seeded++;
+      console.log('✅ Added: ' + s.email + ' (' + s.role + ')');
+    } else {
+      const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
+      obj.FullName   = s.fullName;
+      obj.Role       = s.role;
+      obj.Department = s.department || obj.Department;
+      obj.Status     = 'Active';
+      _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
+      seeded++;
+      console.log('✅ Updated: ' + s.email + ' (' + s.role + ')');
+    }
+  });
+  console.log('Done — seeded/updated ' + seeded + ' account(s) from Script Properties.');
 }
 
 /**

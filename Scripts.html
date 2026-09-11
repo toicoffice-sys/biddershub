@@ -208,16 +208,21 @@ async function init() {
   routeToView();
 }
 
-function populateCategorySelects() {
+function populateCategorySelects(list) {
+  if (list) CATEGORIES = list;
   const ids = ['vendor-category-filter', 'apply-businessCategory', 'editor-category', 'addv-businessCategory'];
   ids.forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
+    const cur = sel.value;
+    // Keep the first placeholder option, remove the rest
+    while (sel.options.length > 1) sel.remove(1);
     CATEGORIES.forEach(c => {
       const opt = document.createElement('option');
       opt.value = c; opt.textContent = c;
       sel.appendChild(opt);
     });
+    if (cur) sel.value = cur;
   });
 }
 
@@ -310,7 +315,7 @@ function configureStaffTabsForRole(role) {
     const tab = btn.dataset.tab;
     if (['s-approvals', 's-inquiries'].includes(tab)) btn.style.display = cpd ? '' : 'none';
     if (tab === 's-vendors') btn.style.display = 'none';
-    if (['s-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
+    if (['s-categories', 's-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
   });
   const newBidBtn = document.getElementById('new-bid-btn');
   if (newBidBtn) newBidBtn.style.display = cpd ? '' : 'none';
@@ -328,6 +333,7 @@ function loadTabData(scope, tabId) {
     if (tabId === 's-approvals') return loadApprovals();
     if (tabId === 's-vendors') return loadVendorApplications();
     if (tabId === 's-inquiries') return loadInquiriesForReview();
+    if (tabId === 's-categories') return loadCategories();
     if (tabId === 's-users') return loadUsers();
     if (tabId === 's-audit') return loadAuditLog();
   }
@@ -1803,6 +1809,114 @@ async function deleteUserAction(userId, name) {
   if (!await showConfirm('Permanently delete ' + (name || 'this user') + '? This cannot be undone.')) return;
   try { await gsRun('deleteUser', SESSION.token, userId); toast('Staff user deleted.', 'success'); loadUsers(); }
   catch (e) { toast(e.message || 'Failed to delete.', 'error'); }
+}
+
+// ── STAFF: CATEGORY MANAGEMENT (cpd_admin only) ──────────────────
+let _CAT_DATA = [];
+
+async function loadCategories() {
+  const el = document.getElementById('staff-categories-table');
+  el.innerHTML = '<p class="hint">Loading…</p>';
+  try {
+    const res = await gsRun('adminGetCategories', SESSION.token);
+    _CAT_DATA = res.categories || [];
+    renderCategories();
+  } catch (e) {
+    el.innerHTML = '<p class="error-text">Failed to load categories. ' + escapeHtml(e.message || String(e)) + '</p>';
+  }
+}
+
+function renderCategories() {
+  const el = document.getElementById('staff-categories-table');
+  if (!_CAT_DATA.length) {
+    el.innerHTML = '<div class="empty-state">No categories yet. Click <b>+ Add Category</b> to create one.</div>';
+    return;
+  }
+  const rows = _CAT_DATA.map((c, i) => {
+    const active = c.IsActive === true || c.IsActive === 'TRUE' || c.IsActive === 1;
+    return `<tr>
+      <td style="width:36px;text-align:center;color:var(--ink-faint);">${i + 1}</td>
+      <td style="font-weight:600;color:var(--ink);">${escapeHtml(c.Name)}</td>
+      <td style="color:var(--ink-soft);font-size:13px;">${escapeHtml(c.Description || '—')}</td>
+      <td style="text-align:center;">
+        <span class="stamp ${active ? 'stamp-green' : 'stamp-grey'}" style="font-size:11px;">${active ? 'Active' : 'Inactive'}</span>
+      </td>
+      <td style="white-space:nowrap;font-size:12px;color:var(--ink-faint);">${fmtDate(c.CreatedOn)}</td>
+      <td style="white-space:nowrap;text-align:right;">
+        <button class="btn btn-sm btn-outline" onclick="openCategoryEditor('${escapeHtml(c.CategoryID)}','${escapeHtml(c.Name).replace(/'/g,"\\'")}','${escapeHtml(c.Description||'').replace(/'/g,"\\'")}','${active}')">Edit</button>
+        ${active
+          ? `<button class="btn btn-sm btn-outline" style="color:var(--ink-red);border-color:var(--ink-red);margin-left:6px;" onclick="deleteCategoryConfirm('${escapeHtml(c.CategoryID)}','${escapeHtml(c.Name).replace(/'/g,"\\'")}')">Deactivate</button>`
+          : `<button class="btn btn-sm btn-outline" style="margin-left:6px;" onclick="reactivateCategory('${escapeHtml(c.CategoryID)}','${escapeHtml(c.Name).replace(/'/g,"\\'")}')">Reactivate</button>`
+        }
+      </td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `<table>
+    <thead><tr><th>#</th><th>Name</th><th>Description</th><th style="text-align:center;">Status</th><th>Created</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function openCategoryEditor(id, name, description, isActive) {
+  document.getElementById('cat-editor-id').value = id || '';
+  document.getElementById('cat-editor-name').value = name || '';
+  document.getElementById('cat-editor-desc').value = description || '';
+  document.getElementById('cat-editor-error').textContent = '';
+  document.getElementById('cat-editor-title').textContent = id ? 'Edit Category' : 'Add Category';
+  const statusRow = document.getElementById('cat-editor-status-row');
+  if (id) {
+    statusRow.style.display = '';
+    document.getElementById('cat-editor-status').value = isActive === 'false' || isActive === false ? 'false' : 'true';
+  } else {
+    statusRow.style.display = 'none';
+  }
+  openModal('modal-category-editor');
+  setTimeout(() => document.getElementById('cat-editor-name').focus(), 100);
+}
+
+async function saveCategoryEditor() {
+  const id = document.getElementById('cat-editor-id').value;
+  const name = document.getElementById('cat-editor-name').value.trim();
+  const description = document.getElementById('cat-editor-desc').value.trim();
+  const isActive = document.getElementById('cat-editor-status').value !== 'false';
+  const errEl = document.getElementById('cat-editor-error');
+  errEl.textContent = '';
+  if (!name) { errEl.textContent = 'Name is required.'; return; }
+  try {
+    await gsRun('adminSaveCategory', SESSION.token, { id: id || null, name, description, isActive });
+    closeModal('modal-category-editor');
+    showToast((id ? 'Category updated.' : 'Category added.'), 'success');
+    loadCategories();
+    // Refresh category dropdowns
+    const res = await gsRun('getCategories');
+    populateCategorySelects(res);
+  } catch (e) {
+    errEl.textContent = e.message || String(e);
+  }
+}
+
+async function deleteCategoryConfirm(id, name) {
+  const ok = await showConfirm(`Deactivate category "${name}"? It will no longer appear in new bid or vendor forms. Existing records using this category are not affected.`);
+  if (!ok) return;
+  try {
+    await gsRun('adminDeleteCategory', SESSION.token, id);
+    showToast('Category deactivated.', 'success');
+    loadCategories();
+    const cats = await gsRun('getCategories');
+    populateCategorySelects(cats);
+  } catch (e) { showToast(e.message || String(e), 'error'); }
+}
+
+async function reactivateCategory(id, name) {
+  const cat = _CAT_DATA.find(c => c.CategoryID === id);
+  if (!cat) return;
+  try {
+    await gsRun('adminSaveCategory', SESSION.token, { id, name, description: cat.Description || '', isActive: true });
+    showToast('Category reactivated.', 'success');
+    loadCategories();
+    const res = await gsRun('getCategories');
+    populateCategorySelects(res);
+  } catch (e) { showToast(e.message || String(e), 'error'); }
 }
 
 // ── STAFF: AUDIT LOG (cpd_admin only) ────────────────────────────
