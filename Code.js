@@ -33,7 +33,9 @@ const SH = {
   CONFIG:      'Config',
   LOI:         'LettersOfIntent',
   CATEGORIES:  'Categories',
+  VISITS:      'PageVisits',
 };
+const VISIT_HEADERS = ['VisitDate','Count'];
 
 const CAT_HEADERS = ['CategoryID','Name','Description','IsActive','CreatedOn','CreatedBy','LastModified'];
 
@@ -123,12 +125,34 @@ const CACHE_LOI_MAP  = 'loi_count_v1';
 
 // ── WEB APP ENTRY ─────────────────────────────────────────────
 function doGet(e) {
+  _trackVisit();
   return HtmlService
     .createTemplateFromFile('index')
     .evaluate()
     .setTitle('DLSL CPO — Procurement Portal')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function _trackVisit() {
+  try {
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    const sheet = getSheet(SH.VISITS);
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(VISIT_HEADERS);
+      _fmtHeader(sheet, '#1a3a5c', VISIT_HEADERS.length);
+    }
+    const data = sheet.getDataRange().getValues();
+    const h = data[0];
+    const dateIdx = h.indexOf('VisitDate'), countIdx = h.indexOf('Count');
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][dateIdx]).slice(0,10) === today) {
+        sheet.getRange(i + 1, countIdx + 1).setValue((Number(data[i][countIdx]) || 0) + 1);
+        return;
+      }
+    }
+    sheet.appendRow([today, 1]);
+  } catch(e) { /* non-critical */ }
 }
 
 function include(filename) {
@@ -1806,6 +1830,74 @@ function getDashboardStats(token) {
       totalInquiries: inquiries.length,
       openInquiries: inquiries.filter(q => q.Status === 'Open').length,
     },
+  };
+}
+
+// ── ANALYTICS ───────────────────────────────────────────────────
+function getAnalytics(token, days) {
+  const user = requireAuth(token);
+  if (!isCPD(user)) throw new Error('CPD authorization required.');
+  days = Math.max(7, Math.min(Number(days) || 30, 365));
+
+  var tz = Session.getScriptTimeZone();
+  var cutoff = new Date(Date.now() - days * 86400000);
+  var cutoffStr = Utilities.formatDate(cutoff, tz, 'yyyy-MM-dd');
+
+  // Build date label array for the period
+  var dateLabels = [];
+  for (var d = 0; d < days; d++) {
+    var dt = new Date(cutoff.getTime() + d * 86400000);
+    dateLabels.push(Utilities.formatDate(dt, tz, 'yyyy-MM-dd'));
+  }
+
+  // LOI data
+  var lois = sheetToObjects(getSheet(SH.LOI));
+  var loiMap = {}, loiStatusMap = {}, loiBidMap = {};
+  lois.forEach(function(l) {
+    var dt = String(l.SubmittedOn || '').slice(0, 10);
+    if (dt >= cutoffStr) loiMap[dt] = (loiMap[dt] || 0) + 1;
+    var s = l.Status || 'Unknown';
+    loiStatusMap[s] = (loiStatusMap[s] || 0) + 1;
+    var t = l.BidTitle || 'Unknown';
+    loiBidMap[t] = (loiBidMap[t] || 0) + 1;
+  });
+
+  // Visits data
+  var visitRows = getSheet(SH.VISITS).getLastRow() > 1
+    ? getSheet(SH.VISITS).getDataRange().getValues() : [VISIT_HEADERS];
+  var visitMap = {};
+  var vh = visitRows[0];
+  var vDateIdx = vh.indexOf('VisitDate'), vCountIdx = vh.indexOf('Count');
+  visitRows.slice(1).forEach(function(r) {
+    var dt = String(r[vDateIdx]).slice(0, 10);
+    if (dt >= cutoffStr) visitMap[dt] = Number(r[vCountIdx]) || 0;
+  });
+
+  // Top bids by view count
+  var bids = sheetToObjects(getSheet(SH.BIDS));
+  var topBids = bids
+    .filter(function(b) { return Number(b.ViewCount) > 0; })
+    .sort(function(a, b) { return Number(b.ViewCount) - Number(a.ViewCount); })
+    .slice(0, 8)
+    .map(function(b) { return { title: b.Title, views: Number(b.ViewCount) }; });
+
+  // Top LOI bids
+  var topLOIBids = Object.keys(loiBidMap)
+    .sort(function(a, b) { return loiBidMap[b] - loiBidMap[a]; })
+    .slice(0, 6)
+    .map(function(t) { return { title: t, count: loiBidMap[t] }; });
+
+  return {
+    ok: true,
+    days: days,
+    labels: dateLabels,
+    loiByDay: dateLabels.map(function(d) { return loiMap[d] || 0; }),
+    visitsByDay: dateLabels.map(function(d) { return visitMap[d] || 0; }),
+    loiByStatus: loiStatusMap,
+    totalLOIs: lois.length,
+    totalVisits: visitRows.slice(1).reduce(function(s, r) { return s + (Number(r[vCountIdx]) || 0); }, 0),
+    topBids: topBids,
+    topLOIBids: topLOIBids,
   };
 }
 

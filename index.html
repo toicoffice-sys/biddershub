@@ -152,6 +152,7 @@
         <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">Bid Opportunities</button>
         <button class="tab" data-tab="s-loi" onclick="switchTab('staff','s-loi')">Submissions</button>
         <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')" style="display:none;">Vendor Accreditation</button>
+        <button class="tab" data-tab="s-analytics" onclick="switchTab('staff','s-analytics')">Analytics</button>
         <button class="tab" data-tab="s-categories" onclick="switchTab('staff','s-categories')">Categories</button>
         <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">Staff Users</button>
         <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">Audit Log</button>
@@ -179,6 +180,45 @@
           <button class="btn btn-primary" onclick="openAddVendorModal()">+ Add Accredited Vendor</button>
         </div>
         <div id="staff-vendors-table"></div>
+      </div>
+      <div id="staff-panel-s-analytics" class="tab-panel hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:18px;">
+          <div style="font-size:13px;color:var(--ink-soft);">Showing last <strong id="analytics-days-label">30</strong> days</div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-outline" onclick="setAnalyticsPeriod(7)">7 Days</button>
+            <button class="btn btn-sm btn-outline" onclick="setAnalyticsPeriod(30)">30 Days</button>
+            <button class="btn btn-sm btn-outline" onclick="setAnalyticsPeriod(90)">90 Days</button>
+          </div>
+        </div>
+        <!-- Stat cards -->
+        <div class="stat-grid" id="analytics-stat-grid" style="margin-bottom:20px;"></div>
+        <!-- Charts row 1 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div class="card">
+            <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">LOI Submissions Over Time</h4>
+            <canvas id="chart-loi-trend" height="120"></canvas>
+          </div>
+          <div class="card">
+            <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">Page Visits &amp; Hits</h4>
+            <canvas id="chart-visits-trend" height="120"></canvas>
+          </div>
+        </div>
+        <!-- Charts row 2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">LOI by Status</h4>
+            <canvas id="chart-loi-status" height="160"></canvas>
+          </div>
+          <div class="card">
+            <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">Top Bids by Views</h4>
+            <canvas id="chart-top-bids" height="160"></canvas>
+          </div>
+        </div>
+        <!-- LOI by Bid table -->
+        <div class="card" style="margin-top:16px;">
+          <h4 style="margin-bottom:14px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;">LOI Submissions by Bid</h4>
+          <div id="analytics-loi-bid-table"></div>
+        </div>
       </div>
       <div id="staff-panel-s-categories" class="tab-panel hidden">
         <div class="toolbar" style="justify-content:flex-end;">

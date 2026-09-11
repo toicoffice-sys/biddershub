@@ -313,7 +313,7 @@ function configureStaffTabsForRole(role) {
   const admin = role === 'cpd_admin';
   document.querySelectorAll('#staff-tabs .tab').forEach(btn => {
     const tab = btn.dataset.tab;
-    if (['s-approvals', 's-inquiries'].includes(tab)) btn.style.display = cpd ? '' : 'none';
+    if (['s-approvals', 's-inquiries', 's-analytics'].includes(tab)) btn.style.display = cpd ? '' : 'none';
     if (tab === 's-vendors') btn.style.display = 'none';
     if (['s-categories', 's-users', 's-audit'].includes(tab)) btn.style.display = admin ? '' : 'none';
   });
@@ -330,6 +330,7 @@ function loadTabData(scope, tabId) {
   } else {
     if (tabId === 's-mybids') return loadMyBids();
     if (tabId === 's-loi') return loadLOI();
+    if (tabId === 's-analytics') return loadAnalytics();
     if (tabId === 's-approvals') return loadApprovals();
     if (tabId === 's-vendors') return loadVendorApplications();
     if (tabId === 's-inquiries') return loadInquiriesForReview();
@@ -1649,6 +1650,140 @@ async function respondToInquiryAction(inquiryId) {
     toast('Response sent.', 'success');
     loadInquiriesForReview();
   } catch (e) { toast(e.message || 'Failed to respond.', 'error'); }
+}
+
+// ── STAFF: ANALYTICS ─────────────────────────────────────────────
+let _analyticsCharts = {};
+let _analyticsDays = 30;
+
+async function loadAnalytics(days) {
+  if (days) _analyticsDays = days;
+  document.getElementById('analytics-days-label').textContent = _analyticsDays;
+  document.getElementById('analytics-stat-grid').innerHTML = '<p class="hint">Loading…</p>';
+  // Destroy existing charts
+  Object.values(_analyticsCharts).forEach(c => { try { c.destroy(); } catch(e){} });
+  _analyticsCharts = {};
+  try {
+    const res = await gsRun('getAnalytics', SESSION.token, _analyticsDays);
+    renderAnalytics(res);
+  } catch(e) {
+    document.getElementById('analytics-stat-grid').innerHTML =
+      '<p class="error-text">Failed to load analytics. ' + escapeHtml(e.message || String(e)) + '</p>';
+  }
+}
+
+function setAnalyticsPeriod(days) { loadAnalytics(days); }
+
+function renderAnalytics(r) {
+  // Stat cards
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayVisits = r.visitsByDay[r.visitsByDay.length - 1] || 0;
+  const todayLOIs   = r.loiByDay[r.loiByDay.length - 1] || 0;
+  const totalPeriodVisits = r.visitsByDay.reduce((s, v) => s + v, 0);
+  const totalPeriodLOIs   = r.loiByDay.reduce((s, v) => s + v, 0);
+  const cards = [
+    ['Total Visits (All Time)', r.totalVisits.toLocaleString()],
+    ['Visits This Period', totalPeriodVisits.toLocaleString()],
+    ['Today\'s Visits', todayVisits.toLocaleString()],
+    ['Total LOI Submissions', r.totalLOIs.toLocaleString()],
+    ['LOIs This Period', totalPeriodLOIs.toLocaleString()],
+    ['Today\'s LOIs', todayLOIs.toLocaleString()],
+  ];
+  document.getElementById('analytics-stat-grid').innerHTML =
+    cards.map(([label, num]) => `<div class="stat-tile"><div class="num">${num}</div><div class="label">${label}</div></div>`).join('');
+
+  // Shared tick settings for time-series
+  const lineOpts = {
+    responsive: true,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 10, font: { size: 11 } }, grid: { display: false } },
+      y: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } } },
+    },
+  };
+
+  // LOI trend line chart
+  _analyticsCharts.loi = new Chart(document.getElementById('chart-loi-trend'), {
+    type: 'line',
+    data: {
+      labels: r.labels,
+      datasets: [{
+        label: 'LOI Submissions',
+        data: r.loiByDay,
+        borderColor: '#1B5E20',
+        backgroundColor: 'rgba(27,94,32,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        borderWidth: 2,
+      }],
+    },
+    options: lineOpts,
+  });
+
+  // Visits trend line chart
+  _analyticsCharts.visits = new Chart(document.getElementById('chart-visits-trend'), {
+    type: 'line',
+    data: {
+      labels: r.labels,
+      datasets: [{
+        label: 'Page Visits',
+        data: r.visitsByDay,
+        borderColor: '#1a3a5c',
+        backgroundColor: 'rgba(26,58,92,0.08)',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 2,
+        borderWidth: 2,
+      }],
+    },
+    options: lineOpts,
+  });
+
+  // LOI by status doughnut
+  const statusKeys = Object.keys(r.loiByStatus);
+  const statusColors = { Pending: '#9ca3af', Awarded: '#1B5E20', Revoked: '#c0392b', Unknown: '#e5e7eb' };
+  _analyticsCharts.loiStatus = new Chart(document.getElementById('chart-loi-status'), {
+    type: 'doughnut',
+    data: {
+      labels: statusKeys,
+      datasets: [{ data: statusKeys.map(k => r.loiByStatus[k]), backgroundColor: statusKeys.map(k => statusColors[k] || '#3C8F55'), borderWidth: 2, borderColor: '#fff' }],
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 12 } } } }, cutout: '60%', responsive: true },
+  });
+
+  // Top bids horizontal bar
+  _analyticsCharts.topBids = new Chart(document.getElementById('chart-top-bids'), {
+    type: 'bar',
+    data: {
+      labels: r.topBids.map(b => b.title.length > 28 ? b.title.slice(0, 26) + '…' : b.title),
+      datasets: [{ label: 'Views', data: r.topBids.map(b => b.views), backgroundColor: '#1B5E20', borderRadius: 3 }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0, font: { size: 11 } } },
+        y: { ticks: { font: { size: 11 } }, grid: { display: false } },
+      },
+    },
+  });
+
+  // LOI by bid table
+  const loiBidEl = document.getElementById('analytics-loi-bid-table');
+  if (!r.topLOIBids.length) {
+    loiBidEl.innerHTML = '<div class="empty-state">No LOI submissions yet.</div>';
+  } else {
+    loiBidEl.innerHTML = `<table>
+      <thead><tr><th>#</th><th>Bid Title</th><th style="text-align:right;">LOI Count</th></tr></thead>
+      <tbody>${r.topLOIBids.map((b, i) => `<tr>
+        <td style="color:var(--ink-faint);text-align:center;">${i+1}</td>
+        <td>${escapeHtml(b.title)}</td>
+        <td style="text-align:right;font-weight:700;color:var(--ink);">${b.count}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+  }
 }
 
 // ── STAFF: KPI DASHBOARD ─────────────────────────────────────────
