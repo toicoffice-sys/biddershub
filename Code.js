@@ -156,15 +156,26 @@ function adminGetCategories(token) {
   const user = requireAuth(token);
   if (!isAdmin(user)) throw new Error('Administrator authorization required.');
   const sheet = getSheet(SH.CATEGORIES);
+
   if (sheet.getLastRow() === 0) {
-    // Brand-new sheet — write header first, then seed from hardcoded list
+    // Completely empty — write header then seed
     sheet.appendRow(CAT_HEADERS);
     _fmtHeader(sheet, '#1a3a5c', CAT_HEADERS.length);
     const now = new Date().toISOString();
     CATEGORIES.forEach(function(name) {
       sheet.appendRow([_id(), name, '', true, now, user.email, now]);
     });
+  } else {
+    // Check if the first row is the header (may be missing from earlier buggy seed)
+    const firstCell = sheet.getRange(1, 1).getValue();
+    if (firstCell !== 'CategoryID') {
+      // Data exists but no header row — insert header at row 1
+      sheet.insertRowBefore(1);
+      sheet.getRange(1, 1, 1, CAT_HEADERS.length).setValues([CAT_HEADERS]);
+      _fmtHeader(sheet, '#1a3a5c', CAT_HEADERS.length);
+    }
   }
+
   const rows = sheetToObjects(sheet);
   return { ok: true, categories: rows };
 }
