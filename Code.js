@@ -127,7 +127,7 @@ function doGet(e) {
     .createTemplateFromFile('index')
     .evaluate()
     .setTitle('DLSL CPO — Procurement Portal')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.SAMEORIGIN)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
