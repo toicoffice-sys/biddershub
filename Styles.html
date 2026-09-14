@@ -258,8 +258,15 @@
   .admin-chip-name { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
   .admin-chip-role { font-size: 11px; font-weight: 600; background: var(--g100); color: var(--g700); border-radius: 4px; padding: 3px 9px; letter-spacing: .02em; }
 
+  /* Full-width admin mode — removes container centering & padding */
+  body.admin-view main.container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
   /* ── Admin sidebar shell — rule-of-thirds layout ─── */
-  .admin-shell { display: flex; gap: 0; align-items: stretch; margin-left: -20px; }
+  .admin-shell { display: flex; gap: 0; align-items: stretch; }
   .admin-sidebar {
     width: 230px; flex-shrink: 0;
     background: linear-gradient(160deg, #1A3A28 0%, #165C38 100%);
@@ -297,9 +304,9 @@
   .admin-sidebar .tab svg { flex-shrink: 0; opacity: .75; }
   .admin-sidebar .tab.active svg { opacity: 1; }
   /* content takes remaining ~2/3 */
-  .admin-content { flex: 1; min-width: 0; padding-left: 24px; text-align: justify; }
+  .admin-content { flex: 1; min-width: 0; padding: 0 24px; text-align: justify; }
   @media (max-width: 768px) {
-    .admin-shell { flex-direction: column; margin-left: 0; }
+    .admin-shell { flex-direction: column; }
     .admin-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-radius: 0; position: static; min-height: unset; padding: 8px; }
     .sidebar-section-label { display: none; }
     .admin-sidebar .tab { white-space: normal; border-left: none; border-bottom: 3px solid transparent; }

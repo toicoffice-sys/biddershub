@@ -249,15 +249,18 @@ function routeToView() {
   document.getElementById('public-hero').classList.add('hidden');
 
   if (!SESSION.token) {
+    document.body.classList.remove('admin-view');
     document.getElementById('view-public').classList.remove('hidden');
     document.getElementById('public-hero').classList.remove('hidden');
     loadPublicBoard();
     return;
   }
   if (SESSION.user.role === 'vendor') {
+    document.body.classList.remove('admin-view');
     document.getElementById('view-vendor').classList.remove('hidden');
     switchTab('vendor', 'v-status');
   } else {
+    document.body.classList.add('admin-view');
     document.getElementById('view-staff').classList.remove('hidden');
     configureStaffTabsForRole(SESSION.user.role);
     const u = SESSION.user;
@@ -270,6 +273,7 @@ function routeToView() {
 }
 
 function goHome() {
+  document.body.classList.remove('admin-view');
   ['view-vendor','view-staff','view-help'].forEach(id => document.getElementById(id).classList.add('hidden'));
   document.getElementById('view-public').classList.remove('hidden');
   document.getElementById('public-hero').classList.remove('hidden');
@@ -277,6 +281,7 @@ function goHome() {
 }
 
 function showHelp() {
+  document.body.classList.remove('admin-view');
   document.getElementById('view-public').classList.add('hidden');
   document.getElementById('view-vendor').classList.add('hidden');
   document.getElementById('view-staff').classList.add('hidden');
