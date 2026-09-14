@@ -730,7 +730,7 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
           ${escapeHtml(bid.status)}${bid.outcome ? ' · ' + escapeHtml(bid.outcome) : ''}
         </span>
       </div>
-      <div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:.1em;margin-bottom:6px;">${escapeHtml(bid.referenceNo || '')}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,0.55);letter-spacing:.1em;margin-bottom:6px;display:none;">${escapeHtml(bid.referenceNo || '')}</div>
       <h2 style="color:#fff;margin:0;font-size:1.35rem;line-height:1.3;padding-right:32px;">${escapeHtml(bid.title)}</h2>
     </div>`;
 
@@ -772,7 +772,7 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
   let showSubmissionSlots = false;
   if (!isAwarded) {
     if (SESSION.token && SESSION.user.role === 'vendor' && bid.status === 'Published') {
-      html += `<h4 style="margin-top:20px;">Submit Your Bid</h4>`;
+      html += `<h4 style="margin-top:20px;">Submit Your Letter of Intent</h4>`;
       const isAccredited = vendorProfile && vendorProfile.AccreditationStatus === 'Approved';
       if (!isAccredited) {
         const statusLabel = vendorProfile ? (vendorProfile.AccreditationStatus === 'ChangesRequested' ? 'Changes Requested' : vendorProfile.AccreditationStatus) : 'Not on file';
@@ -789,7 +789,7 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
         showSubmissionSlots = true;
       }
     } else if (!SESSION.token && bid.status === 'Published') {
-      html += `<h4 style="margin-top:20px;">Submit Your Bid</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
+      html += `<h4 style="margin-top:20px;">Submit Your Letter of Intent</h4><p class="hint">Sign in as an accredited vendor to submit a bid.</p>`;
     }
 
     // LOI inline form — visible to public and vendors, hidden for staff
