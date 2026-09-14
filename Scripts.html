@@ -745,7 +745,6 @@ function renderBidDetail(bid, inquiries, vendorProfile, mySubmission) {
         <tr><td style="${_lbl}">Published On</td><td style="${_val(_r++)}color:var(--ink-soft);">${fmtDate(bid.publishedOn)}</td></tr>
         ${bid.closedOn ? `<tr><td style="${_lbl}">Closed On</td><td style="${_val(_r++)}color:var(--ink-soft);">${fmtDate(bid.closedOn)}</td></tr>` : ''}
         ${bid.category ? `<tr><td style="${_lbl}">Category</td><td style="${_val(_r++)}color:var(--ink-soft);">${escapeHtml(bid.category)}</td></tr>` : ''}
-        <tr><td style="${_lbl}">Reference No.</td><td style="${_val(_r++)}color:var(--ink-soft);font-family:var(--mono);font-size:12px;">${escapeHtml(bid.referenceNo || '—')}</td></tr>
       </tbody>
     </table>`;
 
