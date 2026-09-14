@@ -258,36 +258,50 @@
   .admin-chip-name { font-size: 13px; font-weight: 600; color: var(--ink-soft); }
   .admin-chip-role { font-size: 11px; font-weight: 600; background: var(--g100); color: var(--g700); border-radius: 4px; padding: 3px 9px; letter-spacing: .02em; }
 
-  /* ── Admin sidebar shell ──────────────────────────── */
+  /* ── Admin sidebar shell — rule-of-thirds layout ─── */
   .admin-shell { display: flex; gap: 0; align-items: flex-start; }
   .admin-sidebar {
-    width: 210px; flex-shrink: 0;
+    width: 230px; flex-shrink: 0;
     background: linear-gradient(160deg, #1A3A28 0%, #165C38 100%);
-    border-radius: 12px; padding: 10px 8px;
-    display: flex; flex-direction: column; gap: 2px;
-    box-shadow: 0 2px 12px rgba(8,28,18,.18);
-    position: sticky; top: 80px;
+    border-radius: 14px; padding: 14px 10px 18px;
+    display: flex; flex-direction: column; gap: 1px;
+    box-shadow: 0 4px 18px rgba(8,28,18,.22);
+    position: sticky; top: 80px; min-height: 420px;
+  }
+  .sidebar-section-label {
+    font-size: 9.5px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .13em; color: rgba(200,230,206,.38);
+    padding: 14px 13px 5px; user-select: none;
   }
   .admin-sidebar .tab {
-    display: flex; align-items: center; gap: 9px;
-    padding: 10px 13px; font-size: .82rem; font-weight: 600;
-    color: rgba(200,230,206,.75); border: none; border-radius: 8px;
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 13px; font-size: .83rem; font-weight: 600;
+    color: rgba(220,242,228,.70); border: none; border-radius: 8px;
     background: none; text-align: left; width: 100%; cursor: pointer;
-    transition: background .15s, color .15s;
+    transition: background .15s, color .15s, border-color .15s;
     white-space: nowrap;
+    border-left: 3px solid transparent;
   }
-  .admin-sidebar .tab:hover { background: rgba(255,255,255,.10); color: #E8F5EC; }
+  .admin-sidebar .tab:hover {
+    background: rgba(255,255,255,.09); color: #E8F5EC;
+    border-left-color: rgba(255,255,255,.25);
+  }
   .admin-sidebar .tab.active {
-    background: linear-gradient(135deg, #31A85F 0%, #1E8048 100%);
-    color: #fff; box-shadow: 0 1px 4px rgba(8,28,18,.20);
+    background: rgba(255,255,255,.14);
+    color: #fff; border-left-color: rgba(255,255,255,.85);
+    font-weight: 700;
+    box-shadow: inset 0 0 16px rgba(255,255,255,.04);
   }
-  .admin-sidebar .tab svg { flex-shrink: 0; opacity: .8; }
+  .admin-sidebar .tab svg { flex-shrink: 0; opacity: .75; }
   .admin-sidebar .tab.active svg { opacity: 1; }
-  .admin-content { flex: 1; min-width: 0; padding-left: 22px; }
+  /* content takes remaining ~2/3 */
+  .admin-content { flex: 1; min-width: 0; padding-left: 24px; }
   @media (max-width: 768px) {
     .admin-shell { flex-direction: column; }
-    .admin-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-radius: 10px; position: static; }
-    .admin-sidebar .tab { white-space: normal; }
+    .admin-sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; border-radius: 10px; position: static; min-height: unset; padding: 8px; }
+    .sidebar-section-label { display: none; }
+    .admin-sidebar .tab { white-space: normal; border-left: none; border-bottom: 3px solid transparent; }
+    .admin-sidebar .tab.active { border-left: none; border-bottom-color: rgba(255,255,255,.85); }
     .admin-content { padding-left: 0; padding-top: 14px; }
   }
 
