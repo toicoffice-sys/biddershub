@@ -311,7 +311,7 @@ function switchTab(scope, tabId) {
 function configureStaffTabsForRole(role) {
   const cpd = role === 'cpd_admin' || role === 'cpd_officer';
   const admin = role === 'cpd_admin';
-  document.querySelectorAll('#staff-tabs .tab').forEach(btn => {
+  document.querySelectorAll('#staff-sidebar .tab').forEach(btn => {
     const tab = btn.dataset.tab;
     if (['s-approvals', 's-inquiries', 's-analytics'].includes(tab)) btn.style.display = cpd ? '' : 'none';
     if (tab === 's-vendors') btn.style.display = 'none';

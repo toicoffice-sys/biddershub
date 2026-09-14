@@ -143,19 +143,42 @@
       <div class="admin-header">
         <div>
           <div class="admin-eyebrow">Central Procurement Office</div>
-          <div class="admin-title">Staff Management Portal</div>
+          <div class="admin-title">Admin Dashboard</div>
         </div>
         <div id="admin-user-chip"></div>
       </div>
-      <div class="tabs" id="staff-tabs">
-        <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">Bid Opportunities</button>
-        <button class="tab" data-tab="s-loi" onclick="switchTab('staff','s-loi')">Submissions</button>
-        <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')" style="display:none;">Vendor Accreditation</button>
-        <button class="tab" data-tab="s-analytics" onclick="switchTab('staff','s-analytics')">Analytics</button>
-        <button class="tab" data-tab="s-categories" onclick="switchTab('staff','s-categories')">Categories</button>
-        <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">Staff Users</button>
-        <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">Audit Log</button>
-      </div>
+      <div class="admin-shell">
+        <nav class="admin-sidebar" id="staff-sidebar">
+          <button class="tab active" data-tab="s-mybids" onclick="switchTab('staff','s-mybids')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Bid Opportunities
+          </button>
+          <button class="tab" data-tab="s-loi" onclick="switchTab('staff','s-loi')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+            Submissions
+          </button>
+          <button class="tab" data-tab="s-vendors" onclick="switchTab('staff','s-vendors')" style="display:none;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            Vendor Accreditation
+          </button>
+          <button class="tab" data-tab="s-analytics" onclick="switchTab('staff','s-analytics')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Analytics
+          </button>
+          <button class="tab" data-tab="s-categories" onclick="switchTab('staff','s-categories')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Categories
+          </button>
+          <button class="tab" data-tab="s-users" onclick="switchTab('staff','s-users')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Staff Users
+          </button>
+          <button class="tab" data-tab="s-audit" onclick="switchTab('staff','s-audit')">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Audit Log
+          </button>
+        </nav>
+        <div class="admin-content">
 
       <div id="staff-panel-s-mybids" class="tab-panel">
         <div class="toolbar" style="justify-content:flex-end;">
@@ -232,7 +255,9 @@
         <div id="staff-users-table"></div>
       </div>
       <div id="staff-panel-s-audit" class="tab-panel hidden"><div id="staff-audit-table"></div></div>
-    </div>
+        </div><!-- /admin-content -->
+      </div><!-- /admin-shell -->
+    </div><!-- /view-staff -->
 
     <!-- ── HOW TO USE ───────────────────────────────────── -->
     <div id="view-help" class="hidden">
