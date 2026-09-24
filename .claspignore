@@ -1,0 +1,6 @@
+generate-docs.js
+node_modules/**
+data/**
+*.docx
+*.db
+.env
