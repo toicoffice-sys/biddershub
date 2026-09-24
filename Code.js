@@ -1,10 +1,11 @@
 // ============================================================
 // BiddersHub — Google Apps Script
-// Version: 1.1.0
-// Last Updated: 2026-09-02
+// Version: 1.2.0
+// Last Updated: 2026-09-24
 // Developer: A2OM, DLSL TOIC
 // Description: DLSL Central Procurement Bidding Portal — public bid board, vendor accreditation, Q&A
 // Changelog:
+//   v1.2.0 - 2026-09-24 - Security: OTP brute-force lockout (5 attempts, 15min), action OTP lockout, SAMEORIGIN iframe, email validation + length caps on sendEmailToVendor, bulk import field length validation
 //   v1.1.0 - 2026-09-02 - Security: SPREADSHEET_ID + NOTIF_EMAIL from PropertiesService; X-Frame SAMEORIGIN; staff/admin from Properties
 //   v1.0.0 - Initial release
 // ============================================================
@@ -130,7 +131,7 @@ function doGet(e) {
     .createTemplateFromFile('index')
     .evaluate()
     .setTitle('DLSL CPO — Procurement Portal')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.DEFAULT)
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.SAMEORIGIN)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
@@ -443,17 +444,40 @@ function revokeAward(token, loiId, otp) {
   if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
 
   // Verify action OTP
-  const propKey = 'act_otp_' + user.email;
+  const propKey    = 'act_otp_' + user.email;
+  const attKey     = 'act_att_' + user.email;
+  const MAX_ACT_ATTEMPTS = 5;
+
+  const attRaw  = PropertiesService.getScriptProperties().getProperty(attKey);
+  const attData = attRaw ? _safeParseJSON(attRaw, { count: 0, lockedUntil: 0 }) : { count: 0, lockedUntil: 0 };
+  if (attData.lockedUntil && Date.now() < attData.lockedUntil) {
+    const mins = Math.ceil((attData.lockedUntil - Date.now()) / 60000);
+    throw new Error('Too many incorrect attempts. Please wait ' + mins + ' minute(s).');
+  }
+
   const raw = PropertiesService.getScriptProperties().getProperty(propKey);
   if (!raw) throw new Error('No confirmation code found. Please request a new code.');
   let otpData;
   try { otpData = JSON.parse(raw); } catch (e) { throw new Error('Invalid code data. Please request a new code.'); }
   if (Date.now() > otpData.expiry) {
     PropertiesService.getScriptProperties().deleteProperty(propKey);
+    PropertiesService.getScriptProperties().deleteProperty(attKey);
     throw new Error('Code has expired. Please request a new one.');
   }
-  if (otpData.code !== (otp || '').trim()) throw new Error('Incorrect code. Please try again.');
+
+  if (otpData.code !== (otp || '').trim()) {
+    const newCount = (attData.count || 0) + 1;
+    if (newCount >= MAX_ACT_ATTEMPTS) {
+      PropertiesService.getScriptProperties().setProperty(attKey, JSON.stringify({ count: newCount, lockedUntil: Date.now() + 15 * 60000 }));
+      PropertiesService.getScriptProperties().deleteProperty(propKey);
+      throw new Error('Too many incorrect attempts. Code invalidated. Please request a new one after 15 minutes.');
+    }
+    PropertiesService.getScriptProperties().setProperty(attKey, JSON.stringify({ count: newCount, lockedUntil: 0 }));
+    throw new Error('Incorrect code. ' + (MAX_ACT_ATTEMPTS - newCount) + ' attempt(s) remaining.');
+  }
+
   PropertiesService.getScriptProperties().deleteProperty(propKey);
+  PropertiesService.getScriptProperties().deleteProperty(attKey);
 
   // Revoke the award
   const sheet = getSheet(SH.LOI);
@@ -808,7 +832,18 @@ function verifyOTP(email, code) {
   if (!normalized) return { success: false, message: 'Invalid session. Please start again.' };
   if (!/^\d{6}$/.test(trimmedCode)) return { success: false, message: 'Please enter a valid 6-digit code.' };
 
-  const propKey = 'otp_' + normalized;
+  const propKey    = 'otp_' + normalized;
+  const attKey     = 'otp_att_' + normalized;
+  const MAX_ATTEMPTS = 5;
+
+  // Brute-force lockout check
+  const attRaw = PropertiesService.getScriptProperties().getProperty(attKey);
+  const attData = attRaw ? _safeParseJSON(attRaw, { count: 0, lockedUntil: 0 }) : { count: 0, lockedUntil: 0 };
+  if (attData.lockedUntil && Date.now() < attData.lockedUntil) {
+    const mins = Math.ceil((attData.lockedUntil - Date.now()) / 60000);
+    return { success: false, message: 'Too many incorrect attempts. Please wait ' + mins + ' minute(s) before trying again.' };
+  }
+
   const raw = PropertiesService.getScriptProperties().getProperty(propKey);
   if (!raw) return { success: false, message: 'No verification code found. Please request a new one.' };
 
@@ -818,11 +853,23 @@ function verifyOTP(email, code) {
 
   if (Date.now() > otpData.expiry) {
     PropertiesService.getScriptProperties().deleteProperty(propKey);
+    PropertiesService.getScriptProperties().deleteProperty(attKey);
     return { success: false, message: 'Code expired. Please request a new one.' };
   }
-  if (otpData.code !== trimmedCode) return { success: false, message: 'Incorrect code. Please try again.' };
+
+  if (otpData.code !== trimmedCode) {
+    const newCount = (attData.count || 0) + 1;
+    if (newCount >= MAX_ATTEMPTS) {
+      PropertiesService.getScriptProperties().setProperty(attKey, JSON.stringify({ count: newCount, lockedUntil: Date.now() + 15 * 60000 }));
+      PropertiesService.getScriptProperties().deleteProperty(propKey);
+      return { success: false, message: 'Too many incorrect attempts. Your code has been invalidated. Please request a new one after 15 minutes.' };
+    }
+    PropertiesService.getScriptProperties().setProperty(attKey, JSON.stringify({ count: newCount, lockedUntil: 0 }));
+    return { success: false, message: 'Incorrect code. ' + (MAX_ATTEMPTS - newCount) + ' attempt(s) remaining.' };
+  }
 
   PropertiesService.getScriptProperties().deleteProperty(propKey);
+  PropertiesService.getScriptProperties().deleteProperty(attKey);
 
   let user = _cacheGet('chk_' + normalized);
   if (!user) {
@@ -1151,7 +1198,10 @@ function sendEmailToVendor(token, to, subject, body) {
   const user = requireAuth(token);
   if (!['cpd_admin', 'cpd_officer'].includes(user.role)) throw new Error('Not authorized.');
   if (!to || !subject || !body) throw new Error('to, subject, and body are required.');
-  _mail(to, subject, body + '\n\n— De La Salle Lipa Procurement Office');
+  if (!_isValidEmail((to || '').trim())) throw new Error('Invalid recipient email address.');
+  if (subject.length > 200) throw new Error('Subject must be 200 characters or fewer.');
+  if (body.length > 5000) throw new Error('Message body must be 5,000 characters or fewer.');
+  _mail(to.trim(), subject, body + '\n\n— De La Salle Lipa Procurement Office');
   _logRaw(user, 'EMAIL', 'LOI', to, 'Sent email: ' + subject);
   return { success: true };
 }
@@ -1180,6 +1230,10 @@ function _addOrUpsertApprovedVendor(user, d) {
   if (!d.companyName || !d.companyName.trim()) throw new Error('Company name is required (email: ' + email + ').');
   if (!d.contactPerson || !d.contactPerson.trim()) throw new Error('Contact person is required (email: ' + email + ').');
   if (!d.contactNumber || !d.contactNumber.trim()) throw new Error('Contact number is required (email: ' + email + ').');
+  if (d.companyName.trim().length > 200) throw new Error('Company name is too long (email: ' + email + ').');
+  if (d.contactPerson.trim().length > 120) throw new Error('Contact person name is too long (email: ' + email + ').');
+  if ((d.address || '').trim().length > 300) throw new Error('Address is too long (email: ' + email + ').');
+  if ((d.tinNumber || '').trim().length > 30) throw new Error('TIN number is too long (email: ' + email + ').');
 
   const sheet = getSheet(SH.VENDORS);
   const rowIndex = _findRowIndex(sheet, 'Email', email);
