@@ -1,10 +1,11 @@
 // ============================================================
 // BiddersHub — Google Apps Script
-// Version: 1.2.0
-// Last Updated: 2026-09-24
+// Version: 1.3.0
+// Last Updated: 2026-09-28
 // Developer: A2OM, DLSL TOIC
 // Description: DLSL Central Procurement Bidding Portal — public bid board, vendor accreditation, Q&A
 // Changelog:
+//   v1.3.0 - 2026-09-28 - saveUser/deactivateUser/deleteUser now sync Script Properties (ADMIN_*/STAFF_* keys); grantToicOfficeAdmin reads from Properties
 //   v1.2.0 - 2026-09-24 - Security: OTP brute-force lockout (5 attempts, 15min), action OTP lockout, SAMEORIGIN iframe, email validation + length caps on sendEmailToVendor, bulk import field length validation
 //   v1.1.0 - 2026-09-02 - Security: SPREADSHEET_ID + NOTIF_EMAIL from PropertiesService; X-Frame SAMEORIGIN; staff/admin from Properties
 //   v1.0.0 - Initial release
@@ -690,6 +691,83 @@ function _getStaffFromProperties() {
     };
   });
   return Object.values(staffMap);
+}
+
+/**
+ * Derives a stable Properties tag from an email address.
+ * e.g. toic.office@dlsl.edu.ph → TOIC_OFFICE
+ */
+function _staffTag(email) {
+  return (email || '').split('@')[0].toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+}
+
+/**
+ * Scans Script Properties for an existing ADMIN_*/STAFF_* entry matching email.
+ * Returns { prefix: 'ADMIN'|'STAFF', tag: '<tag>' } or null.
+ */
+function _findStaffPropEntry(props, email) {
+  const norm = (email || '').trim().toLowerCase();
+  const allKeys = Object.keys(props);
+  for (var i = 0; i < allKeys.length; i++) {
+    var key = allKeys[i];
+    var m = key.match(/^(STAFF|ADMIN)_(.+)_EMAIL$/i);
+    if (m && (props[key] || '').trim().toLowerCase() === norm) {
+      return { prefix: m[1].toUpperCase(), tag: m[2] };
+    }
+  }
+  return null;
+}
+
+/**
+ * Writes ADMIN_*/STAFF_* Script Properties keys for a staff account.
+ * Removes the opposite-prefix keys if the role changes (e.g. cpd_officer → cpd_admin).
+ */
+function _syncStaffProps(email, fullName, role, department) {
+  var props = PropertiesService.getScriptProperties();
+  var allProps = props.getProperties();
+  var newPrefix = (role === 'cpd_admin') ? 'ADMIN' : 'STAFF';
+  var tag;
+
+  var existing = _findStaffPropEntry(allProps, email);
+  if (existing) {
+    tag = existing.tag;
+    if (existing.prefix !== newPrefix) {
+      // Role class changed — remove old prefix keys
+      props.deleteProperty(existing.prefix + '_' + tag + '_EMAIL');
+      props.deleteProperty(existing.prefix + '_' + tag + '_NAME');
+      props.deleteProperty(existing.prefix + '_' + tag + '_ROLE');
+      props.deleteProperty(existing.prefix + '_' + tag + '_DEPT');
+    }
+  } else {
+    tag = _staffTag(email);
+    // Resolve collisions: if tag is already used by a different email, append _2, _3, …
+    var attempt = tag;
+    var suffix = 2;
+    while (allProps[newPrefix + '_' + attempt + '_EMAIL'] &&
+           (allProps[newPrefix + '_' + attempt + '_EMAIL'] || '').trim().toLowerCase() !== email.toLowerCase()) {
+      attempt = tag + '_' + suffix++;
+    }
+    tag = attempt;
+  }
+
+  props.setProperty(newPrefix + '_' + tag + '_EMAIL', email.toLowerCase());
+  props.setProperty(newPrefix + '_' + tag + '_NAME',  (fullName || '').trim());
+  props.setProperty(newPrefix + '_' + tag + '_ROLE',  role);
+  if (department) props.setProperty(newPrefix + '_' + tag + '_DEPT', department.trim());
+}
+
+/**
+ * Removes ADMIN_*/STAFF_* Script Properties keys for a given email.
+ */
+function _removeStaffProps(email) {
+  var props = PropertiesService.getScriptProperties();
+  var existing = _findStaffPropEntry(props.getProperties(), email);
+  if (!existing) return;
+  var base = existing.prefix + '_' + existing.tag;
+  props.deleteProperty(base + '_EMAIL');
+  props.deleteProperty(base + '_NAME');
+  props.deleteProperty(base + '_ROLE');
+  props.deleteProperty(base + '_DEPT');
 }
 
 // ── EMAIL OTP AUTH ─────────────────────────────────────────────
@@ -2124,6 +2202,8 @@ function saveUser(token, d) {
     obj.Status = d.status || obj.Status;
     _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
   }
+  // Keep Script Properties in sync — authoritative source for login
+  _syncStaffProps(email, d.fullName.trim(), d.role, (d.department || '').trim());
   _logRaw(user, 'SAVE', 'User', email, 'Saved staff account');
   return { success: true };
 }
@@ -2137,6 +2217,7 @@ function deactivateUser(token, userId) {
   const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
   obj.Status = 'Inactive';
   _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
+  _removeStaffProps(obj.Email);
   _logRaw(user, 'DEACTIVATE', 'User', userId, 'Deactivated staff account');
   return { success: true };
 }
@@ -2149,6 +2230,7 @@ function deleteUser(token, userId) {
   if (rowIndex === -1) throw new Error('User not found.');
   const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
   if (obj.Email === user.email) throw new Error('You cannot delete your own account.');
+  _removeStaffProps(obj.Email);
   sheet.deleteRow(rowIndex);
   _logRaw(user, 'DELETE', 'User', userId, 'Deleted staff account: ' + obj.Email);
   return { success: true };
@@ -2196,46 +2278,55 @@ function authorizeDriveAccess() {
 }
 
 /**
- * One-time helper: grants (or upgrades) a staff account to CPD Administrator.
- * Safe to run anytime — adds a new row if the email isn't in the Users sheet
- * yet, or upgrades the existing row to cpd_admin/Active if it is. Run this
- * from the Apps Script editor (select "grantToicOfficeAdmin" → Run) to fix
- * "this email isn't on file yet" for the TOIC office account.
+ * One-time helper: seeds ALL ADMIN_* accounts from Script Properties into the
+ * Users sheet, then grants each one cpd_admin / Active status.
+ * Replaces the old hardcoded version — all admins must be in Properties first.
+ *
+ * To add the first admin, go to Apps Script → Project Settings → Script Properties and add:
+ *   ADMIN_1_EMAIL  = yourname@dlsl.edu.ph
+ *   ADMIN_1_NAME   = Your Full Name
+ *   ADMIN_1_ROLE   = cpd_admin
+ *   ADMIN_1_DEPT   = Your Department
+ * Then run this function from the editor.
  */
 function grantToicOfficeAdmin() {
-  const sheet = getSheet(SH.USERS);
+  const props  = PropertiesService.getScriptProperties().getProperties();
+  const admins = _getStaffFromProperties().filter(function(s) { return s.role === 'cpd_admin'; });
+  if (!admins.length) {
+    console.log('⚠️ No ADMIN_*_EMAIL entries found in Script Properties.');
+    console.log('Add keys via Project Settings → Script Properties, then re-run.');
+    return;
+  }
 
-  // Self-heal: if the sheet is empty or its first row isn't the expected
-  // header (e.g. because a row was appended before setup() ever ran),
-  // insert a proper header row so every lookup by column name works.
+  const sheet = getSheet(SH.USERS);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(USER_HEADERS);
   } else {
     const firstRow = sheet.getRange(1, 1, 1, USER_HEADERS.length).getValues()[0];
-    const looksLikeHeader = firstRow[0] === 'UserID' && firstRow[1] === 'Email';
-    if (!looksLikeHeader) {
+    if (firstRow[0] !== 'UserID' || firstRow[1] !== 'Email') {
       sheet.insertRowBefore(1);
       sheet.getRange(1, 1, 1, USER_HEADERS.length).setValues([USER_HEADERS]);
-      console.log('⚠️ Users sheet had no header row — inserted one. Check row 2 onward for any data that needs realigning.');
+      console.log('⚠️ Users sheet had no header row — inserted one.');
     }
   }
 
-  const email = 'toic.office@dlsl.edu.ph';
-  const rowIndex = _findRowIndex(sheet, 'Email', email);
   const now = new Date().toISOString();
-  if (rowIndex === -1) {
-    sheet.appendRow(_rowFromObj(USER_HEADERS, {
-      UserID: _id(), Email: email, FullName: 'TOIC Office', Role: 'cpd_admin',
-      Department: 'TOIC', Status: 'Active', AddedBy: 'system', AddedOn: now,
-    }));
-    console.log('✅ Added ' + email + ' as CPD Administrator.');
-  } else {
-    const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
-    obj.Role = 'cpd_admin';
-    obj.Status = 'Active';
-    _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
-    console.log('✅ Updated ' + email + ' to CPD Administrator / Active.');
-  }
+  admins.forEach(function(a) {
+    const rowIndex = _findRowIndex(sheet, 'Email', a.email);
+    if (rowIndex === -1) {
+      sheet.appendRow(_rowFromObj(USER_HEADERS, {
+        UserID: _id(), Email: a.email, FullName: a.fullName, Role: 'cpd_admin',
+        Department: a.department || '', Status: 'Active', AddedBy: 'system', AddedOn: now,
+      }));
+      console.log('✅ Added ' + a.email + ' as CPD Administrator.');
+    } else {
+      const obj = _rowObjectAt(sheet, USER_HEADERS, rowIndex);
+      obj.Role = 'cpd_admin';
+      obj.Status = 'Active';
+      _writeRowObject(sheet, USER_HEADERS, rowIndex, obj);
+      console.log('✅ Updated ' + a.email + ' to CPD Administrator / Active.');
+    }
+  });
   _fmtHeader(sheet, '#1B5E20', USER_HEADERS.length);
 }
 
@@ -2378,8 +2469,8 @@ function setup() {
   _initConfig();
   _initLOI();
   console.log('✅ BiddersHub setup complete!');
-  console.log('Seeded test accounts in the Users sheet: toic.test@dlsl.edu.ph (cpd_admin), cpd.test@dlsl.edu.ph (cpd_officer).');
-  console.log('Replace these with real staff emails when ready, then sign in with the email on file.');
+  console.log('Next: add ADMIN_*_EMAIL/NAME/ROLE/DEPT keys in Project Settings → Script Properties.');
+  console.log('Then run grantToicOfficeAdmin() (or seedAdminsFromProperties()) to seed the Users sheet.');
   console.log('Deploy as Web App → Execute as: Me (User deploying) | Access: Anyone');
 }
 
