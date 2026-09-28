@@ -702,7 +702,7 @@ function _staffTag(email) {
 }
 
 /**
- * Scans Script Properties for an existing ADMIN_*/STAFF_* entry matching email.
+ * Scans Script Properties for an existing ADMIN_<tag> or STAFF_<tag> entry matching email.
  * Returns { prefix: 'ADMIN'|'STAFF', tag: '<tag>' } or null.
  */
 function _findStaffPropEntry(props, email) {
@@ -719,7 +719,7 @@ function _findStaffPropEntry(props, email) {
 }
 
 /**
- * Writes ADMIN_*/STAFF_* Script Properties keys for a staff account.
+ * Writes ADMIN_<tag> or STAFF_<tag> Script Properties keys for a staff account.
  * Removes the opposite-prefix keys if the role changes (e.g. cpd_officer → cpd_admin).
  */
 function _syncStaffProps(email, fullName, role, department) {
@@ -757,7 +757,7 @@ function _syncStaffProps(email, fullName, role, department) {
 }
 
 /**
- * Removes ADMIN_*/STAFF_* Script Properties keys for a given email.
+ * Removes ADMIN_<tag> or STAFF_<tag> Script Properties keys for a given email.
  */
 function _removeStaffProps(email) {
   var props = PropertiesService.getScriptProperties();
