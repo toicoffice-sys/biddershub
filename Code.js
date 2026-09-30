@@ -1,10 +1,11 @@
 // ============================================================
 // BiddersHub — Google Apps Script
-// Version: 1.3.0
-// Last Updated: 2026-09-28
+// Version: 1.4.0
+// Last Updated: 2026-09-30
 // Developer: A2OM, DLSL TOIC
 // Description: DLSL Central Procurement Bidding Portal — public bid board, vendor accreditation, Q&A
 // Changelog:
+//   v1.4.0 - 2026-09-30 - security: _sf() formula-injection guard applied to all user-supplied text fields (INPV-09/CWE-1236)
 //   v1.3.0 - 2026-09-28 - saveUser/deactivateUser/deleteUser now sync Script Properties (ADMIN_*/STAFF_* keys); grantToicOfficeAdmin reads from Properties
 //   v1.2.0 - 2026-09-24 - Security: OTP brute-force lockout (5 attempts, 15min), action OTP lockout, SAMEORIGIN iframe, email validation + length caps on sendEmailToVendor, bulk import field length validation
 //   v1.1.0 - 2026-09-02 - Security: SPREADSHEET_ID + NOTIF_EMAIL from PropertiesService; X-Frame SAMEORIGIN; staff/admin from Properties
@@ -565,6 +566,14 @@ function sheetToObjects(sheet) {
 
 function _rowFromObj(headers, obj) {
   return headers.map(h => obj[h] !== undefined ? obj[h] : '');
+}
+
+// INPV-09: Formula-injection guard — prepend apostrophe to any text value that
+// Google Sheets would evaluate as a formula (leading =, +, -, @, tab, or pipe).
+// Apply to all user-supplied text fields before writing to any Sheet.
+function _sf(val) {
+  const s = (val === null || val === undefined) ? '' : String(val);
+  return /^[=+\-@\t|]/.test(s) ? "'" + s : s;
 }
 
 function _findRowIndex(sheet, idColName, idValue) {
@@ -1133,15 +1142,15 @@ function submitAccreditationApplication(appToken, d) {
     }
     vendorId = existing.VendorID;
     const obj = Object.assign({}, existing, {
-      CompanyName: d.companyName.trim(),
-      TradeName: (d.tradeName || '').trim(),
-      BusinessCategory: (d.businessCategory || '').trim(),
-      TINNumber: (d.tinNumber || '').trim(),
-      DTISECReg: (d.dtisecReg || '').trim(),
-      ContactPerson: d.contactPerson.trim(),
-      ContactNumber: d.contactNumber.trim(),
+      CompanyName: _sf(d.companyName.trim()),
+      TradeName: _sf((d.tradeName || '').trim()),
+      BusinessCategory: _sf((d.businessCategory || '').trim()),
+      TINNumber: _sf((d.tinNumber || '').trim()),
+      DTISECReg: _sf((d.dtisecReg || '').trim()),
+      ContactPerson: _sf(d.contactPerson.trim()),
+      ContactNumber: _sf((d.contactNumber || '').trim()),
       Email: email,
-      Address: (d.address || '').trim(),
+      Address: _sf((d.address || '').trim()),
       Documents: JSON.stringify(docs),
       AccreditationStatus: 'Pending',
       SubmittedOn: now, ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
@@ -1152,15 +1161,15 @@ function submitAccreditationApplication(appToken, d) {
     vendorId = _id();
     sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
       VendorID: vendorId,
-      CompanyName: d.companyName.trim(),
-      TradeName: (d.tradeName || '').trim(),
-      BusinessCategory: (d.businessCategory || '').trim(),
-      TINNumber: (d.tinNumber || '').trim(),
-      DTISECReg: (d.dtisecReg || '').trim(),
-      ContactPerson: d.contactPerson.trim(),
-      ContactNumber: d.contactNumber.trim(),
+      CompanyName: _sf(d.companyName.trim()),
+      TradeName: _sf((d.tradeName || '').trim()),
+      BusinessCategory: _sf((d.businessCategory || '').trim()),
+      TINNumber: _sf((d.tinNumber || '').trim()),
+      DTISECReg: _sf((d.dtisecReg || '').trim()),
+      ContactPerson: _sf(d.contactPerson.trim()),
+      ContactNumber: _sf((d.contactNumber || '').trim()),
       Email: email,
-      Address: (d.address || '').trim(),
+      Address: _sf((d.address || '').trim()),
       Documents: JSON.stringify(docs),
       AccreditationStatus: 'Pending',
       SubmittedOn: now, ReviewedBy: '', ReviewedOn: '', ReviewNotes: '', ExpiryDate: '',
@@ -1219,7 +1228,7 @@ function submitLetterOfIntent(data) {
   else { _migrateLOIHeaders(sheet); }
 
   const now = new Date().toISOString();
-  sheet.appendRow([_id(), companyName, contactPerson, contactEmail, contactNumber, bidTitle, now]);
+  sheet.appendRow([_id(), _sf(companyName), _sf(contactPerson), contactEmail, _sf(contactNumber), _sf(bidTitle), now]);
   _cacheClear(); // invalidate LOI count cache
 
   const ACCREDITATION_URL = 'https://vendorshub.dlsl.edu.ph/UniversofVendor/';
@@ -1323,15 +1332,15 @@ function _addOrUpsertApprovedVendor(user, d) {
     const existing = _rowObjectAt(sheet, VENDOR_HEADERS, rowIndex);
     if (existing.AccreditationStatus === 'Approved') throw new Error('Already an accredited vendor: ' + email);
     const obj = Object.assign({}, existing, {
-      CompanyName: d.companyName.trim(),
-      TradeName: (d.tradeName || '').trim(),
-      BusinessCategory: (d.businessCategory || '').trim(),
-      TINNumber: (d.tinNumber || '').trim(),
-      DTISECReg: (d.dtisecReg || '').trim(),
-      ContactPerson: d.contactPerson.trim(),
-      ContactNumber: d.contactNumber.trim(),
+      CompanyName: _sf(d.companyName.trim()),
+      TradeName: _sf((d.tradeName || '').trim()),
+      BusinessCategory: _sf((d.businessCategory || '').trim()),
+      TINNumber: _sf((d.tinNumber || '').trim()),
+      DTISECReg: _sf((d.dtisecReg || '').trim()),
+      ContactPerson: _sf(d.contactPerson.trim()),
+      ContactNumber: _sf((d.contactNumber || '').trim()),
       Email: email,
-      Address: (d.address || '').trim(),
+      Address: _sf((d.address || '').trim()),
       AccreditationStatus: 'Approved',
       SubmittedOn: existing.SubmittedOn || now,
       ReviewedBy: user.email,
@@ -1348,15 +1357,15 @@ function _addOrUpsertApprovedVendor(user, d) {
   sheet.appendRow(_rowFromObj(VENDOR_HEADERS, {
     VendorID: _id(),
     AccreditationNo: _nextRegistryNumber('ACC'),
-    CompanyName: d.companyName.trim(),
-    TradeName: (d.tradeName || '').trim(),
-    BusinessCategory: (d.businessCategory || '').trim(),
-    TINNumber: (d.tinNumber || '').trim(),
-    DTISECReg: (d.dtisecReg || '').trim(),
-    ContactPerson: d.contactPerson.trim(),
-    ContactNumber: d.contactNumber.trim(),
+    CompanyName: _sf(d.companyName.trim()),
+    TradeName: _sf((d.tradeName || '').trim()),
+    BusinessCategory: _sf((d.businessCategory || '').trim()),
+    TINNumber: _sf((d.tinNumber || '').trim()),
+    DTISECReg: _sf((d.dtisecReg || '').trim()),
+    ContactPerson: _sf(d.contactPerson.trim()),
+    ContactNumber: _sf((d.contactNumber || '').trim()),
     Email: email,
-    Address: (d.address || '').trim(),
+    Address: _sf((d.address || '').trim()),
     Documents: JSON.stringify({}),
     AccreditationStatus: 'Approved',
     SubmittedOn: now,
@@ -2045,8 +2054,8 @@ function submitInquiry(token, bidId, question) {
   const inquiryId = _id();
   const now = new Date().toISOString();
   getSheet(SH.INQUIRIES).appendRow(_rowFromObj(INQUIRY_HEADERS, {
-    InquiryID: inquiryId, BidID: bidId, VendorEmail: user.email, VendorName: user.companyName || user.fullName,
-    Question: question.trim(), SubmittedOn: now, Response: '', RespondedBy: '', RespondedOn: '', Status: 'Open',
+    InquiryID: inquiryId, BidID: bidId, VendorEmail: user.email, VendorName: _sf(user.companyName || user.fullName),
+    Question: _sf(question.trim()), SubmittedOn: now, Response: '', RespondedBy: '', RespondedOn: '', Status: 'Open',
   }));
   _logRaw(user, 'CREATE', 'Inquiry', inquiryId, 'Submitted inquiry for bid ' + bidId);
   return { success: true, inquiryId };
